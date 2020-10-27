@@ -34,6 +34,8 @@ type alias Model =
     { strokes : Array Stroke
     , strokeColor : Color
     , strokeWidth : Int
+    , grid : Maybe Grid
+    , size : Float
     }
 
 
@@ -54,11 +56,19 @@ type alias Point =
     }
 
 
+type Grid
+    = TianGrid
+    | JingGrid
+    | MiGrid
+
+
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { strokes = Array.empty
       , strokeColor = Color.black
       , strokeWidth = 20
+      , grid = Just JingGrid
+      , size = 400
       }
     , Cmd.none
     )
@@ -116,16 +126,18 @@ view model =
             [ E.centerX, E.centerY, E.spacing 30 ]
             [ E.el
                 [ E.inFront <| viewStrokes model ]
-                viewCharacter
+                (viewCharacter model)
             ]
 
 
 viewStrokes : Model -> E.Element Msg
 viewStrokes model =
     E.html <|
-        Svg.svg [ SvgAttributes.viewBox 0 0 400 400 
+        Svg.svg
+            [ SvgAttributes.viewBox 0 0 model.size model.size
             , SvgAttributes.style "pointer-events: none"
-        ] <|
+            ]
+        <|
             Array.Extra.mapToList
                 (\stroke ->
                     Svg.g [] <|
@@ -147,8 +159,8 @@ viewPoint color width point =
         []
 
 
-viewCharacter : E.Element Msg
-viewCharacter =
+viewCharacter : Model -> E.Element Msg
+viewCharacter { size, grid } =
     E.el
         [ Font.size 400
         , Font.family
@@ -156,15 +168,150 @@ viewCharacter =
             ]
         , Font.color <| toElmUiColor <| Color.rgba 0 0 0 0.5
         , E.centerX
+        , E.htmlAttribute <| Html.Attributes.style "user-select" "none"
         , E.htmlAttribute <| Pointer.onDown (decodePoint >> StartAt)
         , E.htmlAttribute <| Pointer.onMove (decodePoint >> ExtendAt)
         , E.htmlAttribute <| Pointer.onUp (decodePoint >> EndAt)
 
         -- no touch-action (prevent scroll etc.)
         , E.htmlAttribute <| Html.Attributes.style "touch-action" "none"
+        , E.behindContent <|
+            case grid of
+                Just g ->
+                    viewGrid size g
+
+                Nothing ->
+                    E.none
         ]
     <|
         E.text "龍"
+
+
+viewGrid : Float -> Grid -> E.Element Msg
+viewGrid size grid =
+    E.html <|
+        Svg.svg
+            [ SvgAttributes.viewBox 0 0 size size
+            , SvgAttributes.style "pointer-events: none"
+            , SvgAttributes.stroke <| Paint <| Color.rgb 50 0 0
+            ]
+            [ Svg.g [] <|
+                List.append
+                    (case grid of
+                        TianGrid ->
+                            [ Svg.line
+                                [ SvgAttributes.x1 (px <| 0)
+                                , SvgAttributes.y1 (px <| size / 2)
+                                , SvgAttributes.x2 (px <| size)
+                                , SvgAttributes.y2 (px <| size / 2)
+                                ]
+                                []
+                            , Svg.line
+                                [ SvgAttributes.x1 (px <| size / 2)
+                                , SvgAttributes.y1 (px <| 0)
+                                , SvgAttributes.x2 (px <| size / 2)
+                                , SvgAttributes.y2 (px <| size)
+                                ]
+                                []
+                            ]
+
+                        JingGrid ->
+                            -- two horizontals
+                            [ Svg.line
+                                [ SvgAttributes.x1 (px <| 0)
+                                , SvgAttributes.y1 (px <| size / 3)
+                                , SvgAttributes.x2 (px <| size)
+                                , SvgAttributes.y2 (px <| size / 3)
+                                ]
+                                []
+                            , Svg.line
+                                [ SvgAttributes.x1 (px <| 0)
+                                , SvgAttributes.y1 (px <| 2 * size / 3)
+                                , SvgAttributes.x2 (px <| size)
+                                , SvgAttributes.y2 (px <| 2 * size / 3)
+                                ]
+                                []
+
+                            -- two verticals
+                            , Svg.line
+                                [ SvgAttributes.x1 (px <| size / 3)
+                                , SvgAttributes.y1 (px <| 0)
+                                , SvgAttributes.x2 (px <| size / 3)
+                                , SvgAttributes.y2 (px <| size)
+                                ]
+                                []
+                            , Svg.line
+                                [ SvgAttributes.x1 (px <| 2 * size / 3)
+                                , SvgAttributes.y1 (px <| 0)
+                                , SvgAttributes.x2 (px <| 2 * size / 3)
+                                , SvgAttributes.y2 (px <| size)
+                                ]
+                                []
+                            ]
+
+                        MiGrid ->
+                            [ Svg.line
+                                [ SvgAttributes.x1 (px <| 0)
+                                , SvgAttributes.y1 (px <| size / 2)
+                                , SvgAttributes.x2 (px <| size)
+                                , SvgAttributes.y2 (px <| size / 2)
+                                ]
+                                []
+                            , Svg.line
+                                [ SvgAttributes.x1 (px <| size / 2)
+                                , SvgAttributes.y1 (px <| 0)
+                                , SvgAttributes.x2 (px <| size / 2)
+                                , SvgAttributes.y2 (px <| size)
+                                ]
+                                []
+                            , Svg.line
+                                [ SvgAttributes.x1 (px <| 0)
+                                , SvgAttributes.y1 (px <| 0)
+                                , SvgAttributes.x2 (px <| size)
+                                , SvgAttributes.y2 (px <| size)
+                                ]
+                                []
+                            , Svg.line
+                                [ SvgAttributes.x1 (px <| size)
+                                , SvgAttributes.y1 (px <| 0)
+                                , SvgAttributes.x2 (px <| 0)
+                                , SvgAttributes.y2 (px <| size)
+                                ]
+                                []
+                            ]
+                    )
+                    [ Svg.line
+                        [ SvgAttributes.x1 (px <| 0)
+                        , SvgAttributes.y1 (px <| 0)
+                        , SvgAttributes.x2 (px <| size)
+                        , SvgAttributes.y2 (px <| 0)
+                        ]
+                        []
+                    , Svg.line
+                        [ SvgAttributes.x1 (px <| 0)
+                        , SvgAttributes.y1 (px <| size)
+                        , SvgAttributes.x2 (px <| size)
+                        , SvgAttributes.y2 (px <| size)
+                        ]
+                        []
+
+                    -- two verticals
+                    , Svg.line
+                        [ SvgAttributes.x1 (px <| 0)
+                        , SvgAttributes.y1 (px <| 0)
+                        , SvgAttributes.x2 (px <| 0)
+                        , SvgAttributes.y2 (px <| size)
+                        ]
+                        []
+                    , Svg.line
+                        [ SvgAttributes.x1 (px <| size)
+                        , SvgAttributes.y1 (px <| 0)
+                        , SvgAttributes.x2 (px <| size)
+                        , SvgAttributes.y2 (px <| size)
+                        ]
+                        []
+                    ]
+            ]
 
 
 decodePoint : Pointer.Event -> Point
@@ -185,7 +332,7 @@ decodePoint event =
 toElmUiColor : Color -> E.Color
 toElmUiColor color =
     let
-        {red, green, blue, alpha } =
+        { red, green, blue, alpha } =
             Color.toRgba color
     in
     E.rgba red green blue alpha
