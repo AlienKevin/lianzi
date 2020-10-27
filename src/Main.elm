@@ -4,8 +4,12 @@ import Array exposing (Array)
 import Array.Extra
 import Browser
 import Color exposing (Color)
+import Color.Manipulate
 import Element as E
+import Element.Background as Background
 import Element.Font as Font
+import Element.Input as Input
+import FeatherIcons
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events.Extra.Pointer as Pointer
@@ -36,6 +40,7 @@ type alias Model =
     , strokeWidth : Int
     , grid : Maybe Grid
     , size : Float
+    , palette : Palette
     }
 
 
@@ -43,6 +48,15 @@ type Msg
     = StartAt Point
     | ExtendAt Point
     | EndAt Point
+    | UndoStroke
+
+
+type alias Palette =
+    { darkFg : Color
+    , lightFg : Color
+    , darkBg : Color
+    , lightBg : Color
+    }
 
 
 type alias Stroke =
@@ -69,6 +83,12 @@ init _ =
       , strokeWidth = 20
       , grid = Just JingGrid
       , size = 400
+      , palette =
+            { darkBg = Color.rgb255 255 255 255
+            , lightBg = Color.rgb255 139 0 0
+            , darkFg = Color.rgb255 0 0 0
+            , lightFg = Color.rgb255 0 0 0
+            }
       }
     , Cmd.none
     )
@@ -85,8 +105,19 @@ update msg model =
 
         EndAt point ->
             endStroke point model
+
+        UndoStroke ->
+            undoStroke model
     , Cmd.none
     )
+
+
+undoStroke : Model -> Model
+undoStroke model =
+    { model
+        | strokes =
+            Array.Extra.pop model.strokes
+    }
 
 
 startStroke : Point -> Model -> Model
@@ -127,7 +158,34 @@ view model =
             [ E.el
                 [ E.inFront <| viewStrokes model ]
                 (viewCharacter model)
+            , viewControls model
             ]
+
+
+viewControls : Model -> E.Element Msg
+viewControls model =
+    E.row []
+        [ viewUndoButton model.palette ]
+
+
+viewUndoButton : Palette -> E.Element Msg
+viewUndoButton { lightBg, darkBg } =
+    Input.button
+        []
+        { onPress = Just UndoStroke
+        , label =
+            E.el
+                [ Font.color <| toElmUiColor darkBg
+                , Background.color <| toElmUiColor lightBg
+                ]
+            <|
+                E.html
+                    (FeatherIcons.cornerUpLeft
+                        |> FeatherIcons.withSize 50
+                        |> FeatherIcons.withStrokeWidth 3
+                        |> FeatherIcons.toHtml []
+                    )
+        }
 
 
 viewStrokes : Model -> E.Element Msg
@@ -160,13 +218,13 @@ viewPoint color width point =
 
 
 viewCharacter : Model -> E.Element Msg
-viewCharacter { size, grid } =
+viewCharacter { size, grid, palette } =
     E.el
         [ Font.size 400
         , Font.family
             [ Font.typeface "Edukai"
             ]
-        , Font.color <| toElmUiColor <| Color.rgba 0 0 0 0.5
+        , Font.color <| toElmUiColor <| Color.Manipulate.fadeOut 0.5 palette.darkFg
         , E.centerX
         , E.htmlAttribute <| Html.Attributes.style "user-select" "none"
         , E.htmlAttribute <| Pointer.onDown (decodePoint >> StartAt)
@@ -178,7 +236,7 @@ viewCharacter { size, grid } =
         , E.behindContent <|
             case grid of
                 Just g ->
-                    viewGrid size g
+                    viewGrid palette size g
 
                 Nothing ->
                     E.none
@@ -187,13 +245,13 @@ viewCharacter { size, grid } =
         E.text "龍"
 
 
-viewGrid : Float -> Grid -> E.Element Msg
-viewGrid size grid =
+viewGrid : Palette -> Float -> Grid -> E.Element Msg
+viewGrid palette size grid =
     E.html <|
         Svg.svg
             [ SvgAttributes.viewBox 0 0 size size
             , SvgAttributes.style "pointer-events: none"
-            , SvgAttributes.stroke <| Paint <| Color.rgb 50 0 0
+            , SvgAttributes.stroke <| Paint <| palette.lightBg
             ]
             [ Svg.g [] <|
                 List.append
