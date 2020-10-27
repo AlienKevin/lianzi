@@ -49,6 +49,7 @@ type Msg
     | ExtendAt Point
     | EndAt Point
     | UndoStroke
+    | ClearStroke
 
 
 type alias Palette =
@@ -108,8 +109,19 @@ update msg model =
 
         UndoStroke ->
             undoStroke model
+        
+        ClearStroke ->
+            clearStroke model
     , Cmd.none
     )
+
+
+clearStroke : Model -> Model
+clearStroke model =
+    { model
+        | strokes =
+            Array.empty
+    }
 
 
 undoStroke : Model -> Model
@@ -164,8 +176,11 @@ view model =
 
 viewControls : Model -> E.Element Msg
 viewControls model =
-    E.row []
-        [ viewUndoButton model.palette ]
+    E.row
+        [ E.spacing 20 ]
+        [ viewUndoButton model.palette
+        , viewClearButton model.palette
+        ]
 
 
 viewUndoButton : Palette -> E.Element Msg
@@ -181,6 +196,26 @@ viewUndoButton { lightBg, darkBg } =
             <|
                 E.html
                     (FeatherIcons.cornerUpLeft
+                        |> FeatherIcons.withSize 50
+                        |> FeatherIcons.withStrokeWidth 3
+                        |> FeatherIcons.toHtml []
+                    )
+        }
+
+
+viewClearButton : Palette -> E.Element Msg
+viewClearButton { lightBg, darkBg } =
+    Input.button
+        []
+        { onPress = Just ClearStroke
+        , label =
+            E.el
+                [ Font.color <| toElmUiColor darkBg
+                , Background.color <| toElmUiColor lightBg
+                ]
+            <|
+                E.html
+                    (FeatherIcons.x
                         |> FeatherIcons.withSize 50
                         |> FeatherIcons.withStrokeWidth 3
                         |> FeatherIcons.toHtml []
