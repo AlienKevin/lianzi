@@ -86,7 +86,7 @@ init _ =
       , size = 400
       , palette =
             { darkBg = Color.rgb255 255 255 255
-            , lightBg = Color.rgb255 139 0 0
+            , lightBg = Color.rgb255 90 0 0
             , darkFg = Color.rgb255 0 0 0
             , lightFg = Color.rgb255 0 0 0
             }
