@@ -42,6 +42,8 @@ type alias Model =
     , gridSize : Float
     , textSize : Float
     , palette : Palette
+    , character : Char
+    , pendingString : String
     }
 
 
@@ -52,6 +54,7 @@ type Msg
     | UndoStroke
     | ClearStroke
     | ChangeGrid Grid
+    | ChangeCharacter String
 
 
 type alias Palette =
@@ -94,6 +97,8 @@ init _ =
             , darkFg = Color.rgb255 0 0 0
             , lightFg = Color.rgb255 90 0 0
             }
+      , character = '龍'
+      , pendingString = ""
       }
     , Cmd.none
     )
@@ -119,8 +124,26 @@ update msg model =
 
         ChangeGrid grid ->
             changeGrid grid model
+
+        ChangeCharacter string ->
+            changeCharacter string model
     , Cmd.none
     )
+
+
+changeCharacter : String -> Model -> Model
+changeCharacter string model =
+    { model
+        | character =
+            case String.uncons string of
+                Just (firstChar, _) ->
+                    firstChar
+
+                Nothing ->
+                    model.character
+        , pendingString =
+            string
+    }
 
 
 changeGrid : Grid -> Model -> Model
@@ -191,12 +214,26 @@ view model =
 
 viewControls : Model -> E.Element Msg
 viewControls model =
-    E.row
+    E.column
         [ E.spacing 20 ]
-        [ viewUndoButton model.palette
-        , viewClearButton model.palette
-        , viewGridSelection model.palette
+        [ E.row
+            [ E.spacing 20 ]
+            [ viewUndoButton model.palette
+            , viewClearButton model.palette
+            , viewGridSelection model.palette
+            ]
+        , viewCharacterInput model
         ]
+
+
+viewCharacterInput : Model -> E.Element Msg
+viewCharacterInput model =
+    Input.text []
+        { onChange = ChangeCharacter
+        , text = model.pendingString
+        , placeholder = Just <| Input.placeholder [] <| E.text "輸入漢字"
+        , label = Input.labelHidden "輸入漢字 Input Hanzi"
+        }
 
 
 viewUndoButton : Palette -> E.Element Msg
@@ -300,7 +337,7 @@ viewPoint color width point =
 
 
 viewCharacter : Model -> E.Element Msg
-viewCharacter { gridSize, grid, palette } =
+viewCharacter { gridSize, grid, palette, character } =
     E.el
         [ Font.size 400
         , Font.family
@@ -318,7 +355,8 @@ viewCharacter { gridSize, grid, palette } =
         , E.behindContent <| viewGrid palette.lightFg 1 gridSize grid
         ]
     <|
-        E.text "龍"
+        E.text <|
+            String.fromChar character
 
 
 viewGrid : Color -> Float -> Float -> Grid -> E.Element Msg
@@ -421,7 +459,7 @@ viewGrid strokeColor strokeWidth size grid =
                                 ]
                                 []
                             ]
-                        
+
                         KongGrid ->
                             []
                     )
