@@ -44,6 +44,7 @@ type alias Model =
     , palette : Palette
     , character : Char
     , pendingString : String
+    , showCharacter : Bool
     }
 
 
@@ -99,6 +100,7 @@ init _ =
             }
       , character = '龍'
       , pendingString = ""
+      , showCharacter = True
       }
     , Cmd.none
     )
@@ -136,7 +138,7 @@ changeCharacter string model =
     { model
         | character =
             case String.uncons string of
-                Just (firstChar, _) ->
+                Just ( firstChar, _ ) ->
                     firstChar
 
                 Nothing ->
@@ -184,15 +186,19 @@ startStroke point model =
 
 extendStroke : Point -> Model -> Model
 extendStroke point model =
-    { model
-        | strokes =
-            Array.Extra.update
-                (Array.length model.strokes - 1)
-                (\stroke ->
-                    Array.push point stroke
-                )
-                model.strokes
-    }
+    if point.force == 0 then
+        model
+
+    else
+        { model
+            | strokes =
+                Array.Extra.update
+                    (Array.length model.strokes - 1)
+                    (\stroke ->
+                        Array.push point stroke
+                    )
+                    model.strokes
+        }
 
 
 endStroke : Point -> Model -> Model
