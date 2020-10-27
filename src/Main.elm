@@ -38,8 +38,9 @@ type alias Model =
     { strokes : Array Stroke
     , strokeColor : Color
     , strokeWidth : Int
-    , grid : Maybe Grid
-    , size : Float
+    , grid : Grid
+    , gridSize : Float
+    , textSize : Float
     , palette : Palette
     }
 
@@ -50,6 +51,7 @@ type Msg
     | EndAt Point
     | UndoStroke
     | ClearStroke
+    | ChangeGrid Grid
 
 
 type alias Palette =
@@ -73,8 +75,9 @@ type alias Point =
 
 type Grid
     = TianGrid
-    | JingGrid
     | MiGrid
+    | JingGrid
+    | KongGrid
 
 
 init : () -> ( Model, Cmd Msg )
@@ -82,13 +85,14 @@ init _ =
     ( { strokes = Array.empty
       , strokeColor = Color.black
       , strokeWidth = 20
-      , grid = Just JingGrid
-      , size = 400
+      , grid = TianGrid
+      , gridSize = 400
+      , textSize = 50
       , palette =
             { darkBg = Color.rgb255 255 255 255
-            , lightBg = Color.rgb255 90 0 0
+            , lightBg = Color.rgb255 255 255 255
             , darkFg = Color.rgb255 0 0 0
-            , lightFg = Color.rgb255 0 0 0
+            , lightFg = Color.rgb255 90 0 0
             }
       }
     , Cmd.none
@@ -109,11 +113,22 @@ update msg model =
 
         UndoStroke ->
             undoStroke model
-        
+
         ClearStroke ->
             clearStroke model
+
+        ChangeGrid grid ->
+            changeGrid grid model
     , Cmd.none
     )
+
+
+changeGrid : Grid -> Model -> Model
+changeGrid grid model =
+    { model
+        | grid =
+            grid
+    }
 
 
 clearStroke : Model -> Model
@@ -180,18 +195,19 @@ viewControls model =
         [ E.spacing 20 ]
         [ viewUndoButton model.palette
         , viewClearButton model.palette
+        , viewGridSelection model.palette
         ]
 
 
 viewUndoButton : Palette -> E.Element Msg
-viewUndoButton { lightBg, darkBg } =
+viewUndoButton { lightFg, darkBg } =
     Input.button
         []
         { onPress = Just UndoStroke
         , label =
             E.el
                 [ Font.color <| toElmUiColor darkBg
-                , Background.color <| toElmUiColor lightBg
+                , Background.color <| toElmUiColor lightFg
                 ]
             <|
                 E.html
@@ -204,14 +220,14 @@ viewUndoButton { lightBg, darkBg } =
 
 
 viewClearButton : Palette -> E.Element Msg
-viewClearButton { lightBg, darkBg } =
+viewClearButton { lightFg, darkBg } =
     Input.button
         []
         { onPress = Just ClearStroke
         , label =
             E.el
                 [ Font.color <| toElmUiColor darkBg
-                , Background.color <| toElmUiColor lightBg
+                , Background.color <| toElmUiColor lightFg
                 ]
             <|
                 E.html
@@ -223,11 +239,42 @@ viewClearButton { lightBg, darkBg } =
         }
 
 
+viewGridSelection : Palette -> E.Element Msg
+viewGridSelection { lightFg, darkBg } =
+    E.row
+        [ E.spacing 20 ]
+        [ Input.button
+            []
+            { onPress = Just <| ChangeGrid TianGrid
+            , label =
+                viewGrid lightFg 2 50 TianGrid
+            }
+        , Input.button
+            []
+            { onPress = Just <| ChangeGrid MiGrid
+            , label =
+                viewGrid lightFg 2 50 MiGrid
+            }
+        , Input.button
+            []
+            { onPress = Just <| ChangeGrid JingGrid
+            , label =
+                viewGrid lightFg 2 50 JingGrid
+            }
+        , Input.button
+            []
+            { onPress = Just <| ChangeGrid KongGrid
+            , label =
+                viewGrid lightFg 2 50 KongGrid
+            }
+        ]
+
+
 viewStrokes : Model -> E.Element Msg
 viewStrokes model =
     E.html <|
         Svg.svg
-            [ SvgAttributes.viewBox 0 0 model.size model.size
+            [ SvgAttributes.viewBox 0 0 model.gridSize model.gridSize
             , SvgAttributes.style "pointer-events: none"
             ]
         <|
@@ -253,7 +300,7 @@ viewPoint color width point =
 
 
 viewCharacter : Model -> E.Element Msg
-viewCharacter { size, grid, palette } =
+viewCharacter { gridSize, grid, palette } =
     E.el
         [ Font.size 400
         , Font.family
@@ -268,25 +315,27 @@ viewCharacter { size, grid, palette } =
 
         -- no touch-action (prevent scroll etc.)
         , E.htmlAttribute <| Html.Attributes.style "touch-action" "none"
-        , E.behindContent <|
-            case grid of
-                Just g ->
-                    viewGrid palette size g
-
-                Nothing ->
-                    E.none
+        , E.behindContent <| viewGrid palette.lightFg 1 gridSize grid
         ]
     <|
         E.text "龍"
 
 
-viewGrid : Palette -> Float -> Grid -> E.Element Msg
-viewGrid palette size grid =
+viewGrid : Color -> Float -> Float -> Grid -> E.Element Msg
+viewGrid strokeColor strokeWidth size grid =
+    let
+        -- Delta value to prevent trimming of border stroke width
+        d =
+            strokeWidth / 2
+    in
     E.html <|
         Svg.svg
             [ SvgAttributes.viewBox 0 0 size size
+            , SvgAttributes.width (px size)
+            , SvgAttributes.height (px size)
+            , SvgAttributes.stroke <| Paint <| strokeColor
+            , SvgAttributes.strokeWidth <| px strokeWidth
             , SvgAttributes.style "pointer-events: none"
-            , SvgAttributes.stroke <| Paint <| palette.lightBg
             ]
             [ Svg.g [] <|
                 List.append
@@ -372,34 +421,37 @@ viewGrid palette size grid =
                                 ]
                                 []
                             ]
+                        
+                        KongGrid ->
+                            []
                     )
                     [ Svg.line
                         [ SvgAttributes.x1 (px <| 0)
-                        , SvgAttributes.y1 (px <| 0)
+                        , SvgAttributes.y1 (px <| 0 + d)
                         , SvgAttributes.x2 (px <| size)
-                        , SvgAttributes.y2 (px <| 0)
+                        , SvgAttributes.y2 (px <| 0 + d)
                         ]
                         []
                     , Svg.line
                         [ SvgAttributes.x1 (px <| 0)
-                        , SvgAttributes.y1 (px <| size)
+                        , SvgAttributes.y1 (px <| size - d)
                         , SvgAttributes.x2 (px <| size)
-                        , SvgAttributes.y2 (px <| size)
+                        , SvgAttributes.y2 (px <| size - d)
                         ]
                         []
 
                     -- two verticals
                     , Svg.line
-                        [ SvgAttributes.x1 (px <| 0)
+                        [ SvgAttributes.x1 (px <| 0 + d)
                         , SvgAttributes.y1 (px <| 0)
-                        , SvgAttributes.x2 (px <| 0)
+                        , SvgAttributes.x2 (px <| 0 + d)
                         , SvgAttributes.y2 (px <| size)
                         ]
                         []
                     , Svg.line
-                        [ SvgAttributes.x1 (px <| size)
+                        [ SvgAttributes.x1 (px <| size - d)
                         , SvgAttributes.y1 (px <| 0)
-                        , SvgAttributes.x2 (px <| size)
+                        , SvgAttributes.x2 (px <| size - d)
                         , SvgAttributes.y2 (px <| size)
                         ]
                         []
