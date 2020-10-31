@@ -1,0 +1,16 @@
+{
+  "main.css": "/lianzi/static/css/main.7f457dfb.chunk.css",
+  "main.js": "/lianzi/static/js/main.4e448cc7.chunk.js",
+  "main.js.map": "/lianzi/static/js/main.4e448cc7.chunk.js.map",
+  "runtime~main.js": "/lianzi/static/js/runtime~main.05068ed6.js",
+  "runtime~main.js.map": "/lianzi/static/js/runtime~main.05068ed6.js.map",
+  "vendors~main.js": "/lianzi/static/js/vendors~main.604c6712.chunk.js",
+  "vendors~main.js.map": "/lianzi/static/js/vendors~main.604c6712.chunk.js.map",
+  "./service-worker.js": "/lianzi/./service-worker.js",
+  "edukai.ttf": "/lianzi/edukai.ttf",
+  "favicon.ico": "/lianzi/favicon.ico",
+  "index.html": "/lianzi/index.html",
+  "logo.svg": "/lianzi/logo.svg",
+  "manifest.json": "/lianzi/manifest.json",
+  "precache-manifest.c9ab11de8436b238525d4e5286ada0b5.js": "/lianzi/precache-manifest.c9ab11de8436b238525d4e5286ada0b5.js"
+}
