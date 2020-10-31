@@ -1,4 +1,4 @@
-module Main exposing (main)
+module Main exposing (Tangents, calculateExternalTangents, main)
 
 import Array exposing (Array)
 import Array.Extra
@@ -13,6 +13,7 @@ import FeatherIcons
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events.Extra.Pointer as Pointer
+import Math.Vector2 as Vector2 exposing (Vec2)
 import TypedSvg as Svg
 import TypedSvg.Attributes as SvgAttributes
 import TypedSvg.Core exposing (Svg)
@@ -37,7 +38,7 @@ subscriptions model =
 type alias Model =
     { strokes : Array Stroke
     , strokeColor : Color
-    , strokeWidth : Int
+    , strokeWidth : Float
     , grid : Grid
     , gridSize : Float
     , textSize : Float
@@ -324,19 +325,226 @@ viewStrokes model =
             Array.Extra.mapToList
                 (\stroke ->
                     Svg.g [] <|
-                        Array.Extra.mapToList
-                            (viewPoint model.strokeColor model.strokeWidth)
-                            stroke
+                        viewTangents model.strokeColor model.strokeWidth stroke
+                            :: Array.Extra.mapToList
+                                (\point ->
+                                    -- case point of
+                                    --     Nothing ->
+                                    --         Svg.g [] []
+
+                                    --     -- empty svg element
+                                    --     Just p ->
+                                            viewPoint model.strokeColor model.strokeWidth point
+                                )
+                                -- [ Array.get 0 stroke, Array.get (Array.length stroke - 1) stroke ]
+                                stroke
                 )
                 model.strokes
 
 
-viewPoint : Color -> Int -> Point -> Svg Msg
+viewTangents : Color -> Float -> Stroke -> Svg Msg
+viewTangents strokeColor strokeWidth stroke =
+    let
+        ( t1, t2 ) =
+            calculateTangents <|
+                Array.map
+                    (\{ x, y, force } ->
+                        ( Vector2.vec2 x y, force * strokeWidth )
+                    )
+                    stroke
+
+        tangentPoints =
+            Array.toList <|
+                Array.map
+                    (\vec2 ->
+                        let
+                            { x, y } =
+                                Vector2.toRecord vec2
+                        in
+                        ( x, y )
+                    )
+                <|
+                    Array.append
+                        t1
+                        (Array.fromList <| List.reverse <| Array.toList t2)
+    in
+    Svg.polygon
+        [ SvgAttributes.fill <| Paint strokeColor
+        , SvgAttributes.stroke <| PaintNone
+        , SvgAttributes.points tangentPoints
+        ]
+        []
+
+
+type alias Circle =
+    ( Vec2, Float )
+
+
+{-| Calculate the external tangents of an array of circles
+
+    REQUIRE: Array.length circles >= 2
+
+-}
+calculateTangents : Array Circle -> ( Array Vec2, Array Vec2 )
+calculateTangents circles =
+    let
+        -- must have at least 2 circles so withDefault should never happen
+        firstCircle =
+            Maybe.withDefault ( Vector2.vec2 0 0, 0 ) <| Array.get 0 circles
+    in
+    tuple3Tail <|
+        Array.foldl
+            (\circle ( prevCircle, t1, t2 ) ->
+                -- prevCircle and circle share the same center
+                case hasExternalTangents prevCircle circle of
+                    Ok _ ->
+                        let
+                            ( ( s1p1, s1p2 ), ( s2p1, s2p2 ) ) =
+                                calculateExternalTangents prevCircle circle
+
+                            s1 =
+                                Array.fromList [ s1p1, s1p2 ]
+
+                            s2 =
+                                Array.fromList [ s2p1, s2p2 ]
+                        in
+                        if Array.isEmpty t1 then
+                            ( circle, s1, s2 )
+
+                        else
+                            ( circle, Array.append t1 s1, Array.append t2 s2 )
+                    
+                    Err largerCircle ->
+                        ( circle, t1, t2 )
+            )
+            ( firstCircle
+            , Array.empty
+            , Array.empty
+            )
+            (Array.Extra.sliceFrom 1 circles)
+
+
+tuple3Tail : ( a, b, c ) -> ( b, c )
+tuple3Tail ( a, b, c ) =
+    ( b, c )
+
+
+type alias Tangents =
+    ( ( Vec2, Vec2 ), ( Vec2, Vec2 ) )
+
+
+hasExternalTangents : Circle -> Circle -> Result Circle ()
+hasExternalTangents (( c1, r1 ) as circle1) (( c2, r2 ) as circle2) =
+    let
+        d =
+            Vector2.distance c1 c2
+    in
+    if abs (r1 - r2) < d && d < r1 + r2 then
+        Ok ()
+
+    else if r1 < r2 then
+        Err circle1
+
+    else
+        Err circle2
+
+
+{-| Calculates the two external tangent lines
+REQUIRE: | r1 - r2 | < d < r1 + r2
+-}
+calculateExternalTangents : Circle -> Circle -> Tangents
+calculateExternalTangents ( c1, r1 ) ( c2, r2 ) =
+    let
+        -- distance between the centers of two circles
+        d =
+            Vector2.distance c1 c2
+
+        h =
+            sqrt (d ^ 2 - (r1 - r2) ^ 2)
+
+        -- _ =
+            -- Debug.log "h" h
+
+        y =
+            sqrt (h ^ 2 + r2 ^ 2)
+
+        x1 =
+            Vector2.getX c1
+
+        y1 =
+            Vector2.getY c1
+
+        x2 =
+            Vector2.getX c2
+
+        y2 =
+            Vector2.getY c2
+
+        rawTheta =
+            acos ((r1 ^ 2 + d ^ 2 - y ^ 2) / (2 * r1 * d))
+
+        xTilt =
+            atan2 (y2 - y1) (x2 - x1)
+
+        -- tangent line 1 with two points
+        theta =
+            rawTheta + xTilt
+
+        t1 =
+            Vector2.vec2 (x1 + r1 * cos theta) (y1 + r1 * sin theta)
+
+        t2 =
+            Vector2.vec2 (x2 + r2 * cos theta) (y2 + r2 * sin theta)
+
+        -- tangent line 2 with two points
+        t3 =
+            vector2Rotate c1 (2 * rawTheta) t1
+
+        t4 =
+            vector2Rotate c2 (2 * rawTheta) t2
+    in
+    if (x2 < x1 || y1 > y2) && not (x2 > x1 && y1 > y2) then
+        ( ( t3, t4 ), ( t1, t2 ) )
+
+    else
+        ( ( t1, t2 ), ( t3, t4 ) )
+
+
+{-| Rotate a `point` around a `pivot` clockwise `angle` radians
+-}
+vector2Rotate : Vec2 -> Float -> Vec2 -> Vec2
+vector2Rotate pivot angle point =
+    let
+        s =
+            sin angle
+
+        c =
+            cos angle
+    in
+    Vector2.add pivot <|
+        (\vec ->
+            let
+                { x, y } =
+                    Vector2.toRecord vec
+
+                newX =
+                    x * c + y * s
+
+                newY =
+                    -x * s + y * c
+            in
+            Vector2.vec2 newX newY
+        )
+        <|
+            Vector2.sub point pivot
+
+
+viewPoint : Color -> Float -> Point -> Svg Msg
 viewPoint color width point =
     Svg.circle
         [ SvgAttributes.cx (px point.x)
         , SvgAttributes.cy (px point.y)
-        , SvgAttributes.r (px <| toFloat width * point.force)
+        , SvgAttributes.r (px <| width * point.force)
         , SvgAttributes.fill <| Paint Color.black
         ]
         []
