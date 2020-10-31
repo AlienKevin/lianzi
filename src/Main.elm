@@ -328,15 +328,8 @@ viewStrokes model =
                         viewTangents model.strokeColor model.strokeWidth stroke
                             :: Array.Extra.mapToList
                                 (\point ->
-                                    -- case point of
-                                    --     Nothing ->
-                                    --         Svg.g [] []
-
-                                    --     -- empty svg element
-                                    --     Just p ->
-                                            viewPoint model.strokeColor model.strokeWidth point
+                                    viewPoint model.strokeColor model.strokeWidth point
                                 )
-                                -- [ Array.get 0 stroke, Array.get (Array.length stroke - 1) stroke ]
                                 stroke
                 )
                 model.strokes
@@ -353,27 +346,58 @@ viewTangents strokeColor strokeWidth stroke =
                     )
                     stroke
 
-        tangentPoints =
-            Array.toList <|
-                Array.map
-                    (\vec2 ->
-                        let
-                            { x, y } =
-                                Vector2.toRecord vec2
-                        in
-                        ( x, y )
-                    )
-                <|
-                    Array.append
-                        t1
-                        (Array.fromList <| List.reverse <| Array.toList t2)
+        tangents =
+            Array.Extra.zip t1 t2
+
+        segments =
+            Array.Extra.indexedMapToList
+                (\index ( p1, p2 ) ->
+                    let
+                        x1 =
+                            Vector2.getX p1
+
+                        y1 =
+                            Vector2.getY p1
+
+                        x2 =
+                            Vector2.getX p2
+
+                        y2 =
+                            Vector2.getY p2
+
+                        { x3, y3, x4, y4 } =
+                            case Array.get (index + 1) tangents of
+                                Just ( p4, p3 ) ->
+                                    { x3 =
+                                        Vector2.getX p3
+                                    , y3 =
+                                        Vector2.getY p3
+                                    , x4 =
+                                        Vector2.getX p4
+                                    , y4 =
+                                        Vector2.getY p4
+                                    }
+
+                                Nothing ->
+                                    { x3 = x2, y3 = y2, x4 = x1, y4 = y1 }
+                    in
+                    Svg.polygon
+                        [ SvgAttributes.points
+                            [ ( x1, y1 )
+                            , ( x2, y2 )
+                            , ( x3, y3 )
+                            , ( x4, y4 )
+                            ]
+                        ]
+                        []
+                )
+                tangents
     in
-    Svg.polygon
+    Svg.g
         [ SvgAttributes.fill <| Paint strokeColor
         , SvgAttributes.stroke <| PaintNone
-        , SvgAttributes.points tangentPoints
         ]
-        []
+        segments
 
 
 type alias Circle =
@@ -413,9 +437,9 @@ calculateTangents circles =
 
                         else
                             ( circle, Array.append t1 s1, Array.append t2 s2 )
-                    
-                    Err largerCircle ->
-                        ( largerCircle, t1, t2 )
+
+                    Err smallerCircle ->
+                        ( smallerCircle, t1, t2 )
             )
             ( firstCircle
             , Array.empty
@@ -443,10 +467,10 @@ hasExternalTangents (( c1, r1 ) as circle1) (( c2, r2 ) as circle2) =
         Ok ()
 
     else if r1 < r2 then
-        Err circle1
+        Err circle2
 
     else
-        Err circle2
+        Err circle1
 
 
 {-| Calculates the two external tangent lines
@@ -461,9 +485,6 @@ calculateExternalTangents ( c1, r1 ) ( c2, r2 ) =
 
         h =
             sqrt (d ^ 2 - (r1 - r2) ^ 2)
-
-        -- _ =
-            -- Debug.log "h" h
 
         y =
             sqrt (h ^ 2 + r2 ^ 2)
