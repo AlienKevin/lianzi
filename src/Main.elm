@@ -415,7 +415,7 @@ calculateTangents circles =
                             ( circle, Array.append t1 s1, Array.append t2 s2 )
                     
                     Err largerCircle ->
-                        ( circle, t1, t2 )
+                        ( largerCircle, t1, t2 )
             )
             ( firstCircle
             , Array.empty
@@ -439,7 +439,7 @@ hasExternalTangents (( c1, r1 ) as circle1) (( c2, r2 ) as circle2) =
         d =
             Vector2.distance c1 c2
     in
-    if abs (r1 - r2) < d && d < r1 + r2 then
+    if abs (r1 - r2) < d then
         Ok ()
 
     else if r1 < r2 then
@@ -450,7 +450,7 @@ hasExternalTangents (( c1, r1 ) as circle1) (( c2, r2 ) as circle2) =
 
 
 {-| Calculates the two external tangent lines
-REQUIRE: | r1 - r2 | < d < r1 + r2
+REQUIRE: | r1 - r2 | < d
 -}
 calculateExternalTangents : Circle -> Circle -> Tangents
 calculateExternalTangents ( c1, r1 ) ( c2, r2 ) =
