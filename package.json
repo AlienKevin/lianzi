@@ -1,0 +1,27 @@
+{
+  "name": "elm-lianzi",
+  "version": "1.0.0",
+  "description": "This project is bootstrapped with [Create Elm App](https://github.com/halfzebra/create-elm-app).",
+  "main": "src/Main.elm",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "elm-test",
+    "deploy": "gh-pages -d build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlienKevin/lianzi.git"
+  },
+  "author": "Kevin Li",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/AlienKevin/lianzi/issues"
+  },
+  "homepage": "https://github.com/AlienKevin/lianzi#readme",
+  "private": true,
+  "devDependencies": {
+    "gh-pages": "^3.1.0"
+  }
+}
