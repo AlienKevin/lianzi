@@ -14,7 +14,7 @@
 importScripts("https://storage.googleapis.com/workbox-cdn/releases/4.3.1/workbox-sw.js");
 
 importScripts(
-  "/lianzi/precache-manifest.6762cb547be9923a4e531148f5c5ed9e.js"
+  "/lianzi/precache-manifest.fd59e172083ccfdab3dd2ce85cf1ebd7.js"
 );
 
 workbox.core.skipWaiting();

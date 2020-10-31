@@ -16,7 +16,7 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/lianzi/favicon.ico"
   },
   {
-    "revision": "ed7b7b9b585d1070a607463f12fb187a",
+    "revision": "7952a816f8da2da465b5fe90321f8405",
     "url": "/lianzi/index.html"
   },
   {
@@ -28,12 +28,12 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/lianzi/manifest.json"
   },
   {
-    "revision": "0a805059e661189777ff",
+    "revision": "cb01ac46ea7780a880e8",
     "url": "/lianzi/static/css/main.7f457dfb.chunk.css"
   },
   {
-    "revision": "0a805059e661189777ff",
-    "url": "/lianzi/static/js/main.0a805059.chunk.js"
+    "revision": "cb01ac46ea7780a880e8",
+    "url": "/lianzi/static/js/main.cb01ac46.chunk.js"
   },
   {
     "revision": "05068ed6646d135910b5",
