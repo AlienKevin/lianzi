@@ -4,7 +4,7 @@ import Array exposing (Array)
 import Array.Extra
 import Browser
 import Browser.Dom
-import Task
+import Browser.Events
 import Color exposing (Color)
 import Color.Manipulate
 import Element as E
@@ -16,6 +16,7 @@ import Html exposing (Html)
 import Html.Attributes
 import Html.Events.Extra.Pointer as Pointer
 import Math.Vector2 as Vector2 exposing (Vec2)
+import Task
 import TypedSvg as Svg
 import TypedSvg.Attributes as SvgAttributes
 import TypedSvg.Core exposing (Svg)
@@ -32,9 +33,9 @@ main =
         }
 
 
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none
+subscriptions : model -> Sub Msg
+subscriptions _ =
+    Browser.Events.onResize (\w h -> GetWindowSize (toFloat w) (toFloat h))
 
 
 type alias Model =
@@ -43,11 +44,19 @@ type alias Model =
     , strokeWidth : Float
     , grid : Grid
     , gridSize : Float
+    , copyStyleGridSize : Float
+    , windowHeight : Float
+    , spacing : Int
     , palette : Palette
     , character : Char
     , pendingString : String
-    , showCharacter : Bool
+    , practiceStyle : PracticeStyle
     }
+
+
+type PracticeStyle
+    = CopyStyle
+    | ImitateStyle
 
 
 type Msg
@@ -58,7 +67,8 @@ type Msg
     | ClearStroke
     | ChangeGrid Grid
     | ChangeCharacter String
-    | GetWindowWidth Float
+    | ChangePracticeStyle PracticeStyle
+    | GetWindowSize Float Float
 
 
 type alias Palette =
@@ -93,7 +103,10 @@ init _ =
       , strokeColor = Color.black
       , strokeWidth = 20
       , grid = TianGrid
-      , gridSize = 400
+      , gridSize = 380
+      , copyStyleGridSize = 380
+      , spacing = 20
+      , windowHeight = 800
       , palette =
             { darkBg = Color.rgb255 255 255 255
             , lightBg = Color.rgb255 255 255 255
@@ -102,9 +115,9 @@ init _ =
             }
       , character = '龍'
       , pendingString = ""
-      , showCharacter = True
+      , practiceStyle = CopyStyle
       }
-    , Task.perform (\{ viewport } -> GetWindowWidth viewport.width ) Browser.Dom.getViewport
+    , Task.perform (\{ viewport } -> GetWindowSize viewport.width viewport.height) Browser.Dom.getViewport
     )
 
 
@@ -131,25 +144,60 @@ update msg model =
 
         ChangeCharacter string ->
             changeCharacter string model
-        
-        GetWindowWidth width ->
-            configureDimensions width model
+
+        ChangePracticeStyle style ->
+            changePracticeStyle style model
+
+        GetWindowSize width height ->
+            configureDimensions width height model
     , Cmd.none
     )
 
 
-configureDimensions : Float -> Model -> Model
-configureDimensions width model =
-    -- phone screen
-    if width < 500 then
-        { model
-            | strokeWidth =
-                45
-            , gridSize =
-                width * 0.8
-        }
-    else
-        model
+changePracticeStyle : PracticeStyle -> Model -> Model
+changePracticeStyle style ({ copyStyleGridSize, windowHeight } as model) =
+    { model
+        | practiceStyle =
+            style
+        , gridSize =
+            case style of
+                CopyStyle ->
+                    copyStyleGridSize
+
+                ImitateStyle ->
+                    min copyStyleGridSize (windowHeight / 3)
+    }
+
+
+configureDimensions : Float -> Float -> Model -> Model
+configureDimensions width height model =
+    let
+        newModel =
+            { model
+                | windowHeight =
+                    height
+            }
+    in
+    changePracticeStyle model.practiceStyle <|
+        -- phone screen
+        if width < 500 then
+            let
+                newGridSize =
+                    width * 0.8
+            in
+            { newModel
+                | strokeWidth =
+                    45
+                , gridSize =
+                    newGridSize
+                , copyStyleGridSize =
+                    newGridSize
+                , spacing =
+                    10
+            }
+
+        else
+            newModel
 
 
 changeCharacter : String -> Model -> Model
@@ -229,29 +277,71 @@ view : Model -> Html Msg
 view model =
     E.layout [] <|
         E.column
-            [ E.centerX, E.centerY, E.spacing 30 ]
-            [ E.el
-                [ E.inFront <| viewStrokes model
-                , E.centerX
+            [ E.centerX, E.centerY, E.spacing model.spacing ]
+        <|
+            (case model.practiceStyle of
+                CopyStyle ->
+                    [ E.el
+                        [ E.inFront <| viewStrokes model
+                        , E.centerX
+                        ]
+                        (viewCharacter model)
+                    ]
+
+                ImitateStyle ->
+                    [ E.el
+                        [ E.centerX ]
+                        (viewCharacter model)
+                    , viewWritingPad model
+                    ]
+            )
+                ++ [ viewControls model ]
+
+
+viewWritingPad : Model -> E.Element Msg
+viewWritingPad ({ grid, gridSize, palette } as model) =
+    let
+        s =
+            gridSize
+    in
+    E.el
+        ([ E.inFront <| viewStrokes model
+         , E.behindContent <| viewGrid palette.lightFg 1 gridSize grid
+         ]
+            ++ writingPadAttributes
+        )
+        (E.html
+            (Svg.svg [ SvgAttributes.width <| px s, SvgAttributes.height <| px s, SvgAttributes.viewBox 0 0 s s ]
+                [ Svg.rect
+                    [ SvgAttributes.x <| px 0
+                    , SvgAttributes.y <| px 0
+                    , SvgAttributes.width <| px s
+                    , SvgAttributes.height <| px s
+                    , SvgAttributes.fill <| Paint palette.lightBg
+                    ]
+                    []
                 ]
-                (viewCharacter model)
-            , viewControls model
-            ]
+            )
+        )
 
 
 viewControls : Model -> E.Element Msg
-viewControls model =
+viewControls ({ palette, gridSize, spacing } as model) =
     E.column
-        [ E.spacing 20
-        , E.width <| E.px <| round model.gridSize
+        [ E.spacing spacing
+        , E.width <| E.px <| round gridSize
         , E.centerX
         ]
-        [ E.wrappedRow
-            [ E.spacing 20 ]
-            [ viewUndoButton model.palette
-            , viewClearButton model.palette
-            , viewGridSelection model
+        [ E.row
+            [ E.spacing spacing
+            , E.centerX
             ]
+            [ viewUndoButton palette
+            , viewClearButton palette
+            , viewSelectCopyStyleButton palette
+            , viewSelectImitateStyleButton palette
+            ]
+        , viewGridSelection model
         , viewCharacterInput model
         ]
 
@@ -267,82 +357,88 @@ viewCharacterInput model =
 
 
 viewUndoButton : Palette -> E.Element Msg
-viewUndoButton { lightFg, darkBg } =
-    Input.button
-        []
-        { onPress = Just UndoStroke
-        , label =
-            E.el
-                [ Font.color <| toElmUiColor darkBg
-                , Background.color <| toElmUiColor lightFg
-                ]
-            <|
-                E.html
-                    (FeatherIcons.cornerUpLeft
-                        |> FeatherIcons.withSize 50
-                        |> FeatherIcons.withStrokeWidth 3
-                        |> FeatherIcons.toHtml []
-                    )
-        }
+viewUndoButton palette =
+    viewIconButton palette UndoStroke FeatherIcons.cornerUpLeft
 
 
 viewClearButton : Palette -> E.Element Msg
-viewClearButton { lightFg, darkBg } =
+viewClearButton palette =
+    viewIconButton palette ClearStroke FeatherIcons.x
+
+
+viewSelectCopyStyleButton : Palette -> E.Element Msg
+viewSelectCopyStyleButton palette =
+    viewIconButton palette (ChangePracticeStyle CopyStyle) FeatherIcons.edit
+
+
+viewSelectImitateStyleButton : Palette -> E.Element Msg
+viewSelectImitateStyleButton palette =
+    viewIconButton palette (ChangePracticeStyle ImitateStyle) FeatherIcons.edit2
+
+
+viewIconButton : Palette -> Msg -> FeatherIcons.Icon -> E.Element Msg
+viewIconButton { lightFg, darkBg } msg icon =
     Input.button
         []
-        { onPress = Just ClearStroke
+        { onPress = Just msg
         , label =
             E.el
                 [ Font.color <| toElmUiColor darkBg
                 , Background.color <| toElmUiColor lightFg
+                , E.width <| E.px 50
+                , E.height <| E.px 50
                 ]
             <|
                 E.html
-                    (FeatherIcons.x
-                        |> FeatherIcons.withSize 50
-                        |> FeatherIcons.withStrokeWidth 3
-                        |> FeatherIcons.toHtml []
+                    (icon
+                        |> FeatherIcons.withSize 40
+                        |> FeatherIcons.withStrokeWidth 2.5
+                        |> FeatherIcons.toHtml [ Html.Attributes.style "margin" "auto" ]
                     )
         }
 
 
 viewGridSelection : Model -> E.Element Msg
-viewGridSelection { grid, palette } =
+viewGridSelection { grid, palette, spacing } =
     let
         { lightFg } =
             palette
 
         selectedColor =
             lightFg
-        
+
         selectedStrokeWidth =
             4
-        
+
         unselectedColor =
             Color.Manipulate.fadeOut 0.5 <| lightFg
-        
+
         unselectedStrokeWidth =
             3
     in
     E.row
-        [ E.spacing 20 ] <|
+        [ E.spacing spacing
+        , E.centerX
+        ]
+    <|
         List.map
-        (\currentGrid ->
-            Input.button
-            []
-            { onPress = Just <| ChangeGrid currentGrid
-            , label =
-                let
-                    (color, strokeWidth) =
-                        if grid == currentGrid then
-                            ( selectedColor, selectedStrokeWidth)
-                        else
-                            ( unselectedColor, unselectedStrokeWidth )
-                in
-                viewGrid color strokeWidth 50 currentGrid
-            }
-        )
-        [ TianGrid, MiGrid, JingGrid, KongGrid ]
+            (\currentGrid ->
+                Input.button
+                    []
+                    { onPress = Just <| ChangeGrid currentGrid
+                    , label =
+                        let
+                            ( color, strokeWidth ) =
+                                if grid == currentGrid then
+                                    ( selectedColor, selectedStrokeWidth )
+
+                                else
+                                    ( unselectedColor, unselectedStrokeWidth )
+                        in
+                        viewGrid color strokeWidth 50 currentGrid
+                    }
+            )
+            [ TianGrid, MiGrid, JingGrid, KongGrid ]
 
 
 viewStrokes : Model -> E.Element Msg
@@ -603,26 +699,46 @@ viewPoint color width point =
 
 
 viewCharacter : Model -> E.Element Msg
-viewCharacter { gridSize, grid, palette, character } =
+viewCharacter { practiceStyle, gridSize, grid, palette, character } =
     E.el
-        [ Font.size <| round gridSize
-        , Font.family
+        ([ Font.size <| round gridSize
+         , Font.family
             [ Font.typeface "Edukai"
             ]
-        , Font.color <| toElmUiColor <| Color.Manipulate.fadeOut 0.5 palette.darkFg
-        , E.centerX
-        , E.htmlAttribute <| Html.Attributes.style "user-select" "none"
-        , E.htmlAttribute <| Pointer.onDown (decodePoint >> StartAt)
-        , E.htmlAttribute <| Pointer.onMove (decodePoint >> ExtendAt)
-        , E.htmlAttribute <| Pointer.onUp (decodePoint >> EndAt)
+         , E.centerX
+         , E.width <| E.px <| round gridSize
+         , E.behindContent <| viewGrid palette.lightFg 1 gridSize grid
+         , E.htmlAttribute <| Html.Attributes.style "user-select" "none"
+         , case practiceStyle of
+            CopyStyle ->
+                Font.color <| toElmUiColor <| Color.Manipulate.fadeOut 0.5 palette.darkFg
 
-        -- no touch-action (prevent scroll etc.)
-        , E.htmlAttribute <| Html.Attributes.style "touch-action" "none"
-        , E.behindContent <| viewGrid palette.lightFg 1 gridSize grid
-        ]
+            ImitateStyle ->
+                Font.color <| toElmUiColor palette.darkFg
+         ]
+            ++ (case practiceStyle of
+                    CopyStyle ->
+                        writingPadAttributes
+
+                    ImitateStyle ->
+                        []
+               )
+        )
     <|
         E.text <|
             String.fromChar character
+
+
+writingPadAttributes : List (E.Attribute Msg)
+writingPadAttributes =
+    [ E.htmlAttribute <| Html.Attributes.style "user-select" "none"
+    , E.htmlAttribute <| Pointer.onDown (decodePoint >> StartAt)
+    , E.htmlAttribute <| Pointer.onMove (decodePoint >> ExtendAt)
+    , E.htmlAttribute <| Pointer.onUp (decodePoint >> EndAt)
+
+    -- no touch-action (prevent scroll etc.)
+    , E.htmlAttribute <| Html.Attributes.style "touch-action" "none"
+    ]
 
 
 viewGrid : Color -> Float -> Float -> Grid -> E.Element Msg
