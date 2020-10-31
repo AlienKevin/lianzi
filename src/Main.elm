@@ -3,6 +3,8 @@ module Main exposing (Tangents, calculateExternalTangents, main)
 import Array exposing (Array)
 import Array.Extra
 import Browser
+import Browser.Dom
+import Task
 import Color exposing (Color)
 import Color.Manipulate
 import Element as E
@@ -41,7 +43,6 @@ type alias Model =
     , strokeWidth : Float
     , grid : Grid
     , gridSize : Float
-    , textSize : Float
     , palette : Palette
     , character : Char
     , pendingString : String
@@ -57,6 +58,7 @@ type Msg
     | ClearStroke
     | ChangeGrid Grid
     | ChangeCharacter String
+    | GetWindowWidth Float
 
 
 type alias Palette =
@@ -92,7 +94,6 @@ init _ =
       , strokeWidth = 20
       , grid = TianGrid
       , gridSize = 400
-      , textSize = 50
       , palette =
             { darkBg = Color.rgb255 255 255 255
             , lightBg = Color.rgb255 255 255 255
@@ -103,7 +104,7 @@ init _ =
       , pendingString = ""
       , showCharacter = True
       }
-    , Cmd.none
+    , Task.perform (\{ viewport } -> GetWindowWidth viewport.width ) Browser.Dom.getViewport
     )
 
 
@@ -130,8 +131,25 @@ update msg model =
 
         ChangeCharacter string ->
             changeCharacter string model
+        
+        GetWindowWidth width ->
+            configureDimensions width model
     , Cmd.none
     )
+
+
+configureDimensions : Float -> Model -> Model
+configureDimensions width model =
+    -- phone screen
+    if width < 500 then
+        { model
+            | strokeWidth =
+                45
+            , gridSize =
+                width * 0.8
+        }
+    else
+        model
 
 
 changeCharacter : String -> Model -> Model
@@ -213,7 +231,9 @@ view model =
         E.column
             [ E.centerX, E.centerY, E.spacing 30 ]
             [ E.el
-                [ E.inFront <| viewStrokes model ]
+                [ E.inFront <| viewStrokes model
+                , E.centerX
+                ]
                 (viewCharacter model)
             , viewControls model
             ]
@@ -222,8 +242,11 @@ view model =
 viewControls : Model -> E.Element Msg
 viewControls model =
     E.column
-        [ E.spacing 20 ]
-        [ E.row
+        [ E.spacing 20
+        , E.width <| E.px <| round model.gridSize
+        , E.centerX
+        ]
+        [ E.wrappedRow
             [ E.spacing 20 ]
             [ viewUndoButton model.palette
             , viewClearButton model.palette
@@ -574,7 +597,7 @@ viewPoint color width point =
 viewCharacter : Model -> E.Element Msg
 viewCharacter { gridSize, grid, palette, character } =
     E.el
-        [ Font.size 400
+        [ Font.size <| round gridSize
         , Font.family
             [ Font.typeface "Edukai"
             ]
