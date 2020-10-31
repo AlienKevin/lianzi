@@ -250,7 +250,7 @@ viewControls model =
             [ E.spacing 20 ]
             [ viewUndoButton model.palette
             , viewClearButton model.palette
-            , viewGridSelection model.palette
+            , viewGridSelection model
             ]
         , viewCharacterInput model
         ]
@@ -306,35 +306,43 @@ viewClearButton { lightFg, darkBg } =
         }
 
 
-viewGridSelection : Palette -> E.Element Msg
-viewGridSelection { lightFg, darkBg } =
+viewGridSelection : Model -> E.Element Msg
+viewGridSelection { grid, palette } =
+    let
+        { lightFg } =
+            palette
+
+        selectedColor =
+            lightFg
+        
+        selectedStrokeWidth =
+            4
+        
+        unselectedColor =
+            Color.Manipulate.fadeOut 0.5 <| lightFg
+        
+        unselectedStrokeWidth =
+            3
+    in
     E.row
-        [ E.spacing 20 ]
-        [ Input.button
+        [ E.spacing 20 ] <|
+        List.map
+        (\currentGrid ->
+            Input.button
             []
-            { onPress = Just <| ChangeGrid TianGrid
+            { onPress = Just <| ChangeGrid currentGrid
             , label =
-                viewGrid lightFg 2 50 TianGrid
+                let
+                    (color, strokeWidth) =
+                        if grid == currentGrid then
+                            ( selectedColor, selectedStrokeWidth)
+                        else
+                            ( unselectedColor, unselectedStrokeWidth )
+                in
+                viewGrid color strokeWidth 50 currentGrid
             }
-        , Input.button
-            []
-            { onPress = Just <| ChangeGrid MiGrid
-            , label =
-                viewGrid lightFg 2 50 MiGrid
-            }
-        , Input.button
-            []
-            { onPress = Just <| ChangeGrid JingGrid
-            , label =
-                viewGrid lightFg 2 50 JingGrid
-            }
-        , Input.button
-            []
-            { onPress = Just <| ChangeGrid KongGrid
-            , label =
-                viewGrid lightFg 2 50 KongGrid
-            }
-        ]
+        )
+        [ TianGrid, MiGrid, JingGrid, KongGrid ]
 
 
 viewStrokes : Model -> E.Element Msg
