@@ -1,4 +1,4 @@
-module Main exposing (Tangents, calculateExternalTangents, main)
+port module Main exposing (Tangents, calculateExternalTangents, main)
 
 import Array exposing (Array)
 import Array.Extra
@@ -23,6 +23,9 @@ import TypedSvg.Core exposing (Svg)
 import TypedSvg.Types exposing (Paint(..), px)
 
 
+port loadFont : String -> Cmd msg
+
+
 main : Program () Model Msg
 main =
     Browser.element
@@ -44,13 +47,20 @@ type alias Model =
     , strokeWidth : Float
     , grid : Grid
     , gridSize : Float
+    , buttonHeight : Int
     , spacing : Int
     , palette : Palette
     , character : Char
     , pendingString : String
     , practiceStyle : PracticeStyle
     , orientation : Orientation
+    , fontId : FontId
+    , showFontSelection : Bool
     }
+
+
+type alias FontId =
+    String
 
 
 type Orientation
@@ -74,6 +84,8 @@ type Msg
     | ChangePracticeStyle PracticeStyle
     | ChangeOrientation Float Float
     | ChangeDimensions Float Float
+    | ToggleFontSelection
+    | ChangeFont FontId
 
 
 type alias Palette =
@@ -104,61 +116,148 @@ type Grid
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { strokes = Array.empty
-      , strokeColor = Color.black
-      , strokeWidth = 20
-      , grid = TianGrid
-      , gridSize = 380
-      , spacing = 20
-      , palette =
-            { darkBg = Color.rgb255 255 255 255
-            , lightBg = Color.rgb255 255 255 255
-            , darkFg = Color.rgb255 0 0 0
-            , lightFg = Color.rgb255 90 0 0
+    let
+        fontId =
+            "edukai"
+
+        model =
+            { strokes = Array.empty
+            , strokeColor = Color.black
+            , strokeWidth = 20
+            , grid = TianGrid
+            , gridSize = 380
+            , buttonHeight = 50
+            , spacing = 20
+            , palette =
+                { darkBg = Color.rgb255 255 255 255
+                , lightBg = Color.rgb255 255 255 255
+                , darkFg = Color.rgb255 0 0 0
+                , lightFg = Color.rgb255 90 0 0
+                }
+            , character = '字'
+            , pendingString = ""
+            , practiceStyle = CopyStyle
+            , orientation = Portrait
+            , fontId = fontId
+            , showFontSelection = False
             }
-      , character = '龍'
-      , pendingString = ""
-      , practiceStyle = CopyStyle
-      , orientation = Portrait
-      }
-    , Task.perform (\{ viewport } -> ChangeDimensions viewport.width viewport.height) Browser.Dom.getViewport
+    in
+    ( model
+    , Cmd.batch
+        [ Task.perform (\{ viewport } -> ChangeDimensions viewport.width viewport.height) Browser.Dom.getViewport
+        , Tuple.second <| changeFont fontId model
+        ]
     )
+
+
+fontIds : List FontId
+fontIds =
+    [ "edukai", "fzkai", "i_ngaan", "eduli", "edusong", "dfsong", "fzsong", "qiji", "shuowen", "i_pen_crane", "seto" ]
+
+
+getFontName : FontId -> String
+getFontName id =
+    case id of
+        "edukai" ->
+            "臺灣標楷"
+
+        "fzkai" ->
+            "方正楷体"
+
+        "i_ngaan" ->
+            "I.顏體"
+
+        "eduli" ->
+            "臺灣標隸"
+
+        "edusong" ->
+            "臺灣標宋"
+
+        "dfsong" ->
+            "華康標宋"
+
+        "fzsong" ->
+            "方正新书宋"
+
+        "qiji" ->
+            "齊伋體"
+
+        "shuowen" ->
+            "說文小篆"
+
+        "i_pen_crane" ->
+            "I.鋼筆鶴體"
+
+        "seto" ->
+            "Seto手寫體"
+
+        _ ->
+            "Invalid font id"
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( case msg of
-        StartAt point ->
-            startStroke point model
+    case msg of
+        ChangeFont id ->
+            changeFont id model
 
-        ExtendAt point ->
-            extendStroke point model
+        _ ->
+            ( case msg of
+                StartAt point ->
+                    startStroke point model
 
-        EndAt point ->
-            endStroke point model
+                ExtendAt point ->
+                    extendStroke point model
 
-        UndoStroke ->
-            undoStroke model
+                EndAt point ->
+                    endStroke point model
 
-        ClearStroke ->
-            clearStroke model
+                UndoStroke ->
+                    undoStroke model
 
-        ChangeGrid grid ->
-            changeGrid grid model
+                ClearStroke ->
+                    clearStroke model
 
-        ChangeCharacter string ->
-            changeCharacter string model
+                ChangeGrid grid ->
+                    changeGrid grid model
 
-        ChangePracticeStyle style ->
-            changePracticeStyle style model
+                ChangeCharacter string ->
+                    changeCharacter string model
 
-        ChangeDimensions width height ->
-            changeDimensions width height model
+                ChangePracticeStyle style ->
+                    changePracticeStyle style model
 
-        ChangeOrientation width height ->
-            changeOrientation width height model
-    , Cmd.none
+                ChangeDimensions width height ->
+                    changeDimensions width height model
+
+                ChangeOrientation width height ->
+                    changeOrientation width height model
+
+                ToggleFontSelection ->
+                    toggleFontSelection model
+
+                _ ->
+                    model
+            , Cmd.none
+            )
+
+
+changeFont : FontId -> Model -> ( Model, Cmd Msg )
+changeFont id model =
+    ( { model
+        | fontId =
+            id
+      }
+    , loadFont id
     )
+
+
+toggleFontSelection : Model -> Model
+toggleFontSelection model =
+    { model
+        | showFontSelection =
+            not model.showFontSelection
+    }
 
 
 changePracticeStyle : PracticeStyle -> Model -> Model
@@ -336,7 +435,7 @@ viewWritingPad ({ grid, gridSize, palette } as model) =
 
 
 viewControls : Model -> E.Element Msg
-viewControls ({ palette, gridSize, spacing } as model) =
+viewControls ({ buttonHeight, palette, gridSize, spacing } as model) =
     E.column
         [ E.spacing spacing
         , E.width <| E.px <| round gridSize
@@ -346,19 +445,62 @@ viewControls ({ palette, gridSize, spacing } as model) =
             [ E.spacing spacing
             , E.centerX
             ]
-            [ viewUndoButton palette
-            , viewClearButton palette
+            [ viewUndoButton buttonHeight palette
+            , viewClearButton buttonHeight palette
             , viewSelectCopyStyleButton model
             , viewSelectImitateStyleButton model
             ]
         , viewGridSelection model
-        , viewCharacterInput model
+        , E.row
+            [ E.spacing 10
+            , E.centerX
+            ]
+            [ viewCharacterInput model
+            , viewFontConfig model
+            ]
         ]
+
+
+viewFontConfig : Model -> E.Element Msg
+viewFontConfig model =
+    Input.button
+        [ Background.color <| toElmUiColor model.palette.lightFg
+        , Font.color <| toElmUiColor model.palette.darkBg
+        , E.height <| E.px model.buttonHeight
+        , E.width <| E.px 120
+        , E.above <|
+            if model.showFontSelection then
+                E.column [] <|
+                    List.map
+                        (\id ->
+                            Input.button
+                                [ Background.color <| toElmUiColor <| Color.Manipulate.fadeOut 0.5 model.palette.lightFg
+                                , Font.color <| toElmUiColor model.palette.darkBg
+                                , E.height <| E.px <| round <| toFloat model.buttonHeight * 0.8
+                                , E.width <| E.px 120
+                                ]
+                                { onPress = Just <| ChangeFont id
+                                , label =
+                                    E.text <| getFontName id
+                                }
+                        )
+                    <|
+                        List.filter ((/=) model.fontId) fontIds
+
+            else
+                E.none
+        ]
+        { onPress = Just ToggleFontSelection
+        , label =
+            E.text <| getFontName model.fontId
+        }
 
 
 viewCharacterInput : Model -> E.Element Msg
 viewCharacterInput model =
-    Input.text []
+    Input.text
+        [ E.width <| E.px 120
+        ]
         { onChange = ChangeCharacter
         , text = model.pendingString
         , placeholder = Just <| Input.placeholder [] <| E.text "輸入漢字"
@@ -366,18 +508,18 @@ viewCharacterInput model =
         }
 
 
-viewUndoButton : Palette -> E.Element Msg
-viewUndoButton palette =
-    viewIconButton palette UndoStroke FeatherIcons.cornerUpLeft
+viewUndoButton : Int -> Palette -> E.Element Msg
+viewUndoButton buttonHeight palette =
+    viewIconButton buttonHeight palette UndoStroke FeatherIcons.cornerUpLeft
 
 
-viewClearButton : Palette -> E.Element Msg
-viewClearButton palette =
-    viewIconButton palette ClearStroke FeatherIcons.x
+viewClearButton : Int -> Palette -> E.Element Msg
+viewClearButton buttonHeight palette =
+    viewIconButton buttonHeight palette ClearStroke FeatherIcons.x
 
 
 viewSelectCopyStyleButton : Model -> E.Element Msg
-viewSelectCopyStyleButton { practiceStyle, palette } =
+viewSelectCopyStyleButton { buttonHeight, practiceStyle, palette } =
     let
         newPalette =
             case practiceStyle of
@@ -390,11 +532,11 @@ viewSelectCopyStyleButton { practiceStyle, palette } =
                             Color.Manipulate.fadeOut 0.5 <| palette.lightFg
                     }
     in
-    viewIconButton newPalette (ChangePracticeStyle CopyStyle) FeatherIcons.edit
+    viewIconButton buttonHeight newPalette (ChangePracticeStyle CopyStyle) FeatherIcons.edit
 
 
 viewSelectImitateStyleButton : Model -> E.Element Msg
-viewSelectImitateStyleButton { practiceStyle, palette } =
+viewSelectImitateStyleButton { buttonHeight, practiceStyle, palette } =
     let
         newPalette =
             case practiceStyle of
@@ -407,11 +549,11 @@ viewSelectImitateStyleButton { practiceStyle, palette } =
                             Color.Manipulate.fadeOut 0.5 <| palette.lightFg
                     }
     in
-    viewIconButton newPalette (ChangePracticeStyle ImitateStyle) FeatherIcons.edit2
+    viewIconButton buttonHeight newPalette (ChangePracticeStyle ImitateStyle) FeatherIcons.edit2
 
 
-viewIconButton : Palette -> Msg -> FeatherIcons.Icon -> E.Element Msg
-viewIconButton { lightFg, darkBg } msg icon =
+viewIconButton : Int -> Palette -> Msg -> FeatherIcons.Icon -> E.Element Msg
+viewIconButton buttonHeight { lightFg, darkBg } msg icon =
     Input.button
         []
         { onPress = Just msg
@@ -419,8 +561,8 @@ viewIconButton { lightFg, darkBg } msg icon =
             E.el
                 [ Font.color <| toElmUiColor darkBg
                 , Background.color <| toElmUiColor lightFg
-                , E.width <| E.px 50
-                , E.height <| E.px 50
+                , E.width <| E.px buttonHeight
+                , E.height <| E.px buttonHeight
                 ]
             <|
                 E.html
@@ -433,7 +575,7 @@ viewIconButton { lightFg, darkBg } msg icon =
 
 
 viewGridSelection : Model -> E.Element Msg
-viewGridSelection { grid, palette, spacing } =
+viewGridSelection { grid, palette, spacing, buttonHeight } =
     let
         { lightFg } =
             palette
@@ -469,7 +611,7 @@ viewGridSelection { grid, palette, spacing } =
                                 else
                                     ( unselectedColor, unselectedStrokeWidth )
                         in
-                        viewGrid color strokeWidth 50 currentGrid
+                        viewGrid color strokeWidth (toFloat buttonHeight) currentGrid
                     }
             )
             [ TianGrid, MiGrid, JingGrid, KongGrid ]
@@ -733,11 +875,11 @@ viewPoint color width point =
 
 
 viewCharacter : Model -> E.Element Msg
-viewCharacter { practiceStyle, gridSize, grid, palette, character } =
+viewCharacter { practiceStyle, gridSize, grid, palette, character, fontId } =
     E.el
         ([ Font.size <| round gridSize
          , Font.family
-            [ Font.typeface "Edukai"
+            [ Font.typeface fontId
             ]
          , E.centerX
          , E.width <| E.px <| round gridSize
