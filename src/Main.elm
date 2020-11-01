@@ -154,7 +154,7 @@ update msg model =
 
         ChangeDimensions width height ->
             changeDimensions width height model
-        
+
         ChangeOrientation width height ->
             changeOrientation width height model
     , Cmd.none
@@ -348,8 +348,8 @@ viewControls ({ palette, gridSize, spacing } as model) =
             ]
             [ viewUndoButton palette
             , viewClearButton palette
-            , viewSelectCopyStyleButton palette
-            , viewSelectImitateStyleButton palette
+            , viewSelectCopyStyleButton model
+            , viewSelectImitateStyleButton model
             ]
         , viewGridSelection model
         , viewCharacterInput model
@@ -376,14 +376,38 @@ viewClearButton palette =
     viewIconButton palette ClearStroke FeatherIcons.x
 
 
-viewSelectCopyStyleButton : Palette -> E.Element Msg
-viewSelectCopyStyleButton palette =
-    viewIconButton palette (ChangePracticeStyle CopyStyle) FeatherIcons.edit
+viewSelectCopyStyleButton : Model -> E.Element Msg
+viewSelectCopyStyleButton { practiceStyle, palette } =
+    let
+        newPalette =
+            case practiceStyle of
+                CopyStyle ->
+                    palette
+
+                ImitateStyle ->
+                    { palette
+                        | lightFg =
+                            Color.Manipulate.fadeOut 0.5 <| palette.lightFg
+                    }
+    in
+    viewIconButton newPalette (ChangePracticeStyle CopyStyle) FeatherIcons.edit
 
 
-viewSelectImitateStyleButton : Palette -> E.Element Msg
-viewSelectImitateStyleButton palette =
-    viewIconButton palette (ChangePracticeStyle ImitateStyle) FeatherIcons.edit2
+viewSelectImitateStyleButton : Model -> E.Element Msg
+viewSelectImitateStyleButton { practiceStyle, palette } =
+    let
+        newPalette =
+            case practiceStyle of
+                ImitateStyle ->
+                    palette
+
+                CopyStyle ->
+                    { palette
+                        | lightFg =
+                            Color.Manipulate.fadeOut 0.5 <| palette.lightFg
+                    }
+    in
+    viewIconButton newPalette (ChangePracticeStyle ImitateStyle) FeatherIcons.edit2
 
 
 viewIconButton : Palette -> Msg -> FeatherIcons.Icon -> E.Element Msg
