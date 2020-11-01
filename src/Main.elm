@@ -35,7 +35,7 @@ main =
 
 subscriptions : model -> Sub Msg
 subscriptions _ =
-    Browser.Events.onResize (\w h -> GetWindowSize (toFloat w) (toFloat h))
+    Browser.Events.onResize (\w h -> ChangeOrientation (toFloat w) (toFloat h))
 
 
 type alias Model =
@@ -44,14 +44,18 @@ type alias Model =
     , strokeWidth : Float
     , grid : Grid
     , gridSize : Float
-    , copyStyleGridSize : Float
-    , windowHeight : Float
     , spacing : Int
     , palette : Palette
     , character : Char
     , pendingString : String
     , practiceStyle : PracticeStyle
+    , orientation : Orientation
     }
+
+
+type Orientation
+    = Portrait
+    | Landscape
 
 
 type PracticeStyle
@@ -68,7 +72,8 @@ type Msg
     | ChangeGrid Grid
     | ChangeCharacter String
     | ChangePracticeStyle PracticeStyle
-    | GetWindowSize Float Float
+    | ChangeOrientation Float Float
+    | ChangeDimensions Float Float
 
 
 type alias Palette =
@@ -104,9 +109,7 @@ init _ =
       , strokeWidth = 20
       , grid = TianGrid
       , gridSize = 380
-      , copyStyleGridSize = 380
       , spacing = 20
-      , windowHeight = 800
       , palette =
             { darkBg = Color.rgb255 255 255 255
             , lightBg = Color.rgb255 255 255 255
@@ -116,8 +119,9 @@ init _ =
       , character = '龍'
       , pendingString = ""
       , practiceStyle = CopyStyle
+      , orientation = Portrait
       }
-    , Task.perform (\{ viewport } -> GetWindowSize viewport.width viewport.height) Browser.Dom.getViewport
+    , Task.perform (\{ viewport } -> ChangeDimensions viewport.width viewport.height) Browser.Dom.getViewport
     )
 
 
@@ -148,56 +152,52 @@ update msg model =
         ChangePracticeStyle style ->
             changePracticeStyle style model
 
-        GetWindowSize width height ->
-            configureDimensions width height model
+        ChangeDimensions width height ->
+            changeDimensions width height model
+        
+        ChangeOrientation width height ->
+            changeOrientation width height model
     , Cmd.none
     )
 
 
 changePracticeStyle : PracticeStyle -> Model -> Model
-changePracticeStyle style ({ copyStyleGridSize, windowHeight } as model) =
+changePracticeStyle style model =
     { model
         | practiceStyle =
             style
-        , gridSize =
-            case style of
-                CopyStyle ->
-                    copyStyleGridSize
-
-                ImitateStyle ->
-                    min copyStyleGridSize (windowHeight / 3)
     }
 
 
-configureDimensions : Float -> Float -> Model -> Model
-configureDimensions width height model =
-    let
-        newModel =
-            { model
-                | windowHeight =
-                    height
-            }
-    in
-    changePracticeStyle model.practiceStyle <|
-        -- phone screen
-        if width < 500 then
-            let
-                newGridSize =
-                    width * 0.8
-            in
-            { newModel
-                | strokeWidth =
-                    45
-                , gridSize =
-                    newGridSize
-                , copyStyleGridSize =
-                    newGridSize
-                , spacing =
-                    10
-            }
+changeOrientation : Float -> Float -> Model -> Model
+changeOrientation width height model =
+    { model
+        | orientation =
+            if width > height then
+                Landscape
 
-        else
-            newModel
+            else
+                Portrait
+    }
+
+
+changeDimensions : Float -> Float -> Model -> Model
+changeDimensions width height model =
+    changeOrientation width height <|
+        changePracticeStyle model.practiceStyle <|
+            -- phone screen
+            if height < model.gridSize * 3 then
+                { model
+                    | strokeWidth =
+                        45
+                    , gridSize =
+                        height / 3
+                    , spacing =
+                        10
+                }
+
+            else
+                model
 
 
 changeCharacter : String -> Model -> Model
@@ -289,11 +289,21 @@ view model =
                     ]
 
                 ImitateStyle ->
-                    [ E.el
-                        [ E.centerX ]
-                        (viewCharacter model)
-                    , viewWritingPad model
-                    ]
+                    case model.orientation of
+                        Portrait ->
+                            [ E.el
+                                [ E.centerX ]
+                                (viewCharacter model)
+                            , viewWritingPad model
+                            ]
+
+                        Landscape ->
+                            [ E.row
+                                [ E.centerX ]
+                                [ viewCharacter model
+                                , viewWritingPad model
+                                ]
+                            ]
             )
                 ++ [ viewControls model ]
 
