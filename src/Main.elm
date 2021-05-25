@@ -130,11 +130,11 @@ init _ =
         model =
             { strokes = Array.empty
             , strokeColor = Color.black
-            , strokeWidth = 20
+            , strokeWidth = 10
             , grid = TianGrid
             , gridSize = 380
             , buttonHeight = 50
-            , spacing = 20
+            , spacing = 10
             , palette =
                 { darkBg = Color.rgb255 255 255 255
                 , lightBg = Color.rgb255 255 255 255
@@ -336,7 +336,7 @@ changeDimensions width height model =
     changeOrientation width height <|
         changePracticeStyle model.practiceStyle <|
             -- phone screen
-            if height < model.gridSize * 3 then
+            if height < 900 then
                 { model
                     | strokeWidth =
                         45
