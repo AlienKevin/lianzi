@@ -23,7 +23,9 @@ import TypedSvg.Core exposing (Svg)
 import TypedSvg.Types exposing (Paint(..), px)
 
 
-port loadFont : String -> Cmd msg
+port loadFontPort : String -> Cmd msg
+port loadCsldCharacterPort : (String, String) -> Cmd msg
+port setCsldCharacterUrlPort : (String -> msg) -> Sub msg
 
 
 main : Program () Model Msg
@@ -38,7 +40,10 @@ main =
 
 subscriptions : model -> Sub Msg
 subscriptions _ =
-    Browser.Events.onResize (\w h -> ChangeOrientation (toFloat w) (toFloat h))
+    Sub.batch
+        [ Browser.Events.onResize (\w h -> ChangeOrientation (toFloat w) (toFloat h))
+        , setCsldCharacterUrlPort SetCsldCharacterUrl
+        ]
 
 
 type alias Model =
@@ -56,6 +61,7 @@ type alias Model =
     , orientation : Orientation
     , fontId : FontId
     , showFontSelection : Bool
+    , csldCharacterUrl : Maybe String
     }
 
 
@@ -86,6 +92,7 @@ type Msg
     | ChangeDimensions Float Float
     | ToggleFontSelection
     | ChangeFont FontId
+    | SetCsldCharacterUrl String
 
 
 type alias Palette =
@@ -140,6 +147,7 @@ init _ =
             , orientation = Portrait
             , fontId = fontId
             , showFontSelection = False
+            , csldCharacterUrl = Nothing
             }
     in
     ( model
@@ -152,7 +160,7 @@ init _ =
 
 fontIds : List FontId
 fontIds =
-    [ "edukai", "fzkai", "i_ngaan", "eduli", "edusong", "dfsong", "fzsong", "qiji", "shuowen", "i_pen_crane", "seto" ]
+    [ "edukai", "fzkai", "i_ngaan", "eduli", "edusong", "dfsong", "fzsong", "qiji", "shuowen", "i_pen_crane", "seto", "csld_楷書", "csld_行書", "csld_草書", "csld_隸書", "csld_篆書", "csld_金文", "csld_甲骨文" ]
 
 
 getFontName : FontId -> String
@@ -191,6 +199,27 @@ getFontName id =
         "seto" ->
             "Seto手寫體"
 
+        "csld_楷書"->
+            "張炳煌楷書"
+        
+        "csld_隸書"->
+            "張炳煌隸書"
+        
+        "csld_篆書"->
+            "張炳煌篆書"
+
+        "csld_行書"->
+            "張炳煌行書"
+
+        "csld_草書"->
+            "張炳煌草書"
+
+        "csld_金文"->
+            "張炳煌金文"
+
+        "csld_甲骨文"->
+            "張炳煌甲文"
+
         _ ->
             "Invalid font id"
 
@@ -200,6 +229,9 @@ update msg model =
     case msg of
         ChangeFont id ->
             changeFont id model
+        
+        ChangeCharacter string ->
+            changeCharacter string model
 
         _ ->
             ( case msg of
@@ -221,9 +253,6 @@ update msg model =
                 ChangeGrid grid ->
                     changeGrid grid model
 
-                ChangeCharacter string ->
-                    changeCharacter string model
-
                 ChangePracticeStyle style ->
                     changePracticeStyle style model
 
@@ -236,10 +265,24 @@ update msg model =
                 ToggleFontSelection ->
                     toggleFontSelection model
 
+                SetCsldCharacterUrl url ->
+                    setCsldCharacterUrl url model
+
                 _ ->
                     model
             , Cmd.none
             )
+
+
+setCsldCharacterUrl : String -> Model -> Model
+setCsldCharacterUrl url model =
+    { model
+        | csldCharacterUrl =
+            if String.isEmpty url then
+                Nothing
+            else
+                Just url
+    }
 
 
 changeFont : FontId -> Model -> ( Model, Cmd Msg )
@@ -247,8 +290,16 @@ changeFont id model =
     ( { model
         | fontId =
             id
+        , csldCharacterUrl =
+            Nothing
       }
-    , loadFont id
+    , Cmd.batch
+        [ if String.startsWith "csld_" id then
+            Cmd.none
+        else
+            loadFontPort id
+        , loadCsldCharacter id model.character
+        ]
     )
 
 
@@ -299,19 +350,33 @@ changeDimensions width height model =
                 model
 
 
-changeCharacter : String -> Model -> Model
+changeCharacter : String -> Model -> (Model, Cmd Msg)
 changeCharacter string model =
-    { model
-        | character =
+    let
+        newChar =
             case String.uncons string of
                 Just ( firstChar, _ ) ->
                     firstChar
 
                 Nothing ->
                     model.character
+    in
+    ({ model
+        | character =
+            newChar
         , pendingString =
             string
     }
+    , loadCsldCharacter model.fontId newChar
+    )
+
+
+loadCsldCharacter : String -> Char -> Cmd Msg
+loadCsldCharacter fontId char =
+    if String.startsWith "csld_" fontId then
+        loadCsldCharacterPort ((String.dropLeft (String.length "csld_") fontId), String.fromChar char)
+    else
+        Cmd.none
 
 
 changeGrid : Grid -> Model -> Model
@@ -875,7 +940,7 @@ viewPoint color width point =
 
 
 viewCharacter : Model -> E.Element Msg
-viewCharacter { practiceStyle, gridSize, grid, palette, character, fontId } =
+viewCharacter { practiceStyle, gridSize, grid, palette, character, fontId, csldCharacterUrl } =
     E.el
         ([ Font.size <| round gridSize
          , Font.family
@@ -901,8 +966,17 @@ viewCharacter { practiceStyle, gridSize, grid, palette, character, fontId } =
                )
         )
     <|
-        E.text <|
-            String.fromChar character
+        case csldCharacterUrl of
+            Just url ->
+                E.image [ E.centerX, E.width E.fill ]
+                    { src =
+                        url
+                    , description =
+                        String.cons character ("（" ++ getFontName fontId ++ "）")
+                    }
+            Nothing ->
+                E.text <|
+                    String.fromChar character
 
 
 writingPadAttributes : List (E.Attribute Msg)
