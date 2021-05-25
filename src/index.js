@@ -24,11 +24,15 @@ app.ports.loadCsldCharacterPort.subscribe(function ([scriptType, char]) {
     return response.json();
   })
   .then(function(moeJson) {
+    if (moeJson === undefined || moeJson.data === undefined) {
+      app.ports.setCsldCharacterUrlPort.send("");
+      return;
+    }
     const charInfo = moeJson.data.strokes.find(function(element) {
       return element.key === scriptType;
     });
     if (charInfo !== undefined) {
-      fetch(charInfo.jpg)
+      fetch(charInfo.gif)
       .then(function(response) { return response.blob();})
         .then(function(blob) {
             convertBlobToBase64(blob).then(function(charUrl) {
@@ -39,7 +43,6 @@ app.ports.loadCsldCharacterPort.subscribe(function ([scriptType, char]) {
       app.ports.setCsldCharacterUrlPort.send("");
     }
   });
-
 });
 
 // Converts any given blob into a base64 encoded string.
