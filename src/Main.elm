@@ -26,6 +26,7 @@ import TypedSvg.Types exposing (Paint(..), px)
 port loadFontPort : String -> Cmd msg
 port loadCsldCharacterPort : (String, String) -> Cmd msg
 port setCsldCharacterUrlPort : (String -> msg) -> Sub msg
+port replayCsldCharacterPort : () -> Cmd msg
 
 
 main : Program () Model Msg
@@ -93,6 +94,7 @@ type Msg
     | ToggleFontSelection
     | ChangeFont FontId
     | SetCsldCharacterUrl String
+    | ReplayCsldCharacter
 
 
 type alias Palette =
@@ -232,6 +234,11 @@ update msg model =
         
         ChangeCharacter string ->
             changeCharacter string model
+        
+        ReplayCsldCharacter ->
+            ( model
+            , replayCsldCharacterPort ()
+            )
 
         _ ->
             ( case msg of
@@ -294,13 +301,18 @@ changeFont id model =
             Nothing
       }
     , Cmd.batch
-        [ if String.startsWith "csld_" id then
+        [ if isCsldFont id then
             Cmd.none
         else
             loadFontPort id
         , loadCsldCharacter id model.character
         ]
     )
+
+
+isCsldFont : FontId -> Bool
+isCsldFont fontId =
+    String.startsWith "csld_" fontId
 
 
 toggleFontSelection : Model -> Model
@@ -500,7 +512,7 @@ viewWritingPad ({ grid, gridSize, palette } as model) =
 
 
 viewControls : Model -> E.Element Msg
-viewControls ({ buttonHeight, palette, gridSize, spacing } as model) =
+viewControls ({ buttonHeight, palette, gridSize, spacing, fontId } as model) =
     E.column
         [ E.spacing spacing
         , E.width <| E.px <| round gridSize
@@ -510,7 +522,11 @@ viewControls ({ buttonHeight, palette, gridSize, spacing } as model) =
             [ E.spacing spacing
             , E.centerX
             ]
-            [ viewUndoButton buttonHeight palette
+            [ if isCsldFont fontId then
+                viewReplayButton buttonHeight palette
+            else
+                E.none
+            , viewUndoButton buttonHeight palette
             , viewClearButton buttonHeight palette
             , viewSelectCopyStyleButton model
             , viewSelectImitateStyleButton model
@@ -571,6 +587,11 @@ viewCharacterInput model =
         , placeholder = Just <| Input.placeholder [] <| E.text "輸入漢字"
         , label = Input.labelHidden "輸入漢字 Input Hanzi"
         }
+
+
+viewReplayButton : Int -> Palette -> E.Element Msg
+viewReplayButton buttonHeight palette =
+    viewIconButton buttonHeight palette ReplayCsldCharacter FeatherIcons.play
 
 
 viewUndoButton : Int -> Palette -> E.Element Msg
@@ -968,7 +989,7 @@ viewCharacter { practiceStyle, gridSize, grid, palette, character, fontId, csldC
     <|
         case csldCharacterUrl of
             Just url ->
-                E.image [ E.centerX, E.width E.fill ]
+                E.image [ E.centerX, E.width E.fill, E.htmlAttribute <| Html.Attributes.id "csld-character" ]
                     { src =
                         url
                     , description =

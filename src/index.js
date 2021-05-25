@@ -7,6 +7,8 @@ const app = Elm.Main.init({
   node: document.getElementById('root')
 });
 
+let csldCharacterUrl = "";
+
 app.ports.loadFontPort.subscribe(function (name) {
   const dir = process.env.PUBLIC_URL + "/fonts";
   let url = `url(${dir}/${name}.woff2) format("woff2"), url(${dir}/${name}.woff) format("woff"), url(${dir}/${name}.ttf) format("truetype")`;
@@ -18,6 +20,11 @@ app.ports.loadFontPort.subscribe(function (name) {
   });
 });
 
+app.ports.replayCsldCharacterPort.subscribe(function () {
+  console.log("replaying...");
+  document.getElementById("csld-character").getElementsByTagName("img")[0].src = csldCharacterUrl;
+});
+
 app.ports.loadCsldCharacterPort.subscribe(function ([scriptType, char]) {
   fetch(`https://www.moedict.tw/api/web/word/${char}`)
   .then(function(response) {
@@ -25,7 +32,7 @@ app.ports.loadCsldCharacterPort.subscribe(function ([scriptType, char]) {
   })
   .then(function(moeJson) {
     if (moeJson === undefined || moeJson.data === undefined) {
-      app.ports.setCsldCharacterUrlPort.send("");
+      setCsldCharacterUrl("");
       return;
     }
     const charInfo = moeJson.data.strokes.find(function(element) {
@@ -36,14 +43,19 @@ app.ports.loadCsldCharacterPort.subscribe(function ([scriptType, char]) {
       .then(function(response) { return response.blob();})
         .then(function(blob) {
             convertBlobToBase64(blob).then(function(charUrl) {
-              app.ports.setCsldCharacterUrlPort.send(charUrl);
+              setCsldCharacterUrl(charUrl);
             });
         })
     } else {
-      app.ports.setCsldCharacterUrlPort.send("");
+      setCsldCharacterUrl("");
     }
   });
 });
+
+function setCsldCharacterUrl(url) {
+  csldCharacterUrl = url;
+  app.ports.setCsldCharacterUrlPort.send(url);
+}
 
 // Converts any given blob into a base64 encoded string.
 function convertBlobToBase64(blob) {
