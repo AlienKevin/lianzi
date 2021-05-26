@@ -136,7 +136,7 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/lianzi/fonts/shuowen.woff2"
   },
   {
-    "revision": "88f33186c3854649af5614789c774620",
+    "revision": "777ee7dc6873fc4091aacc64bafd8ff0",
     "url": "/lianzi/index.html"
   },
   {
@@ -148,12 +148,12 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/lianzi/manifest.json"
   },
   {
-    "revision": "c7c925fdba540da94446",
+    "revision": "9989010411d2c6e0c903",
     "url": "/lianzi/static/css/main.0af5c45f.chunk.css"
   },
   {
-    "revision": "c7c925fdba540da94446",
-    "url": "/lianzi/static/js/main.c7c925fd.chunk.js"
+    "revision": "9989010411d2c6e0c903",
+    "url": "/lianzi/static/js/main.99890104.chunk.js"
   },
   {
     "revision": "05068ed6646d135910b5",
