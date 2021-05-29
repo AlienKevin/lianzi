@@ -2,12 +2,133 @@ import './main.css';
 import './elm-pep';
 import { Elm } from './Main.elm';
 import * as serviceWorker from './serviceWorker';
+import TraceSkeleton from 'skeleton-tracing-wasm';
+import Canvg from 'canvg';
 
 const app = Elm.Main.init({
   node: document.getElementById('root')
 });
 
 let csldCharacterUrl = "";
+let staticCsldCharacterUrl = "";
+
+app.ports.checkCsldCharacterPort.subscribe(function () {
+  // ref-character
+  var refPromise = new Promise(function(resolve) {
+    var refCanvas = document.createElement("canvas");
+    const characterSize = document.getElementById("ref-character").clientWidth;
+    refCanvas.width = characterSize;
+    refCanvas.height = characterSize;
+    var refCtx = refCanvas.getContext("2d");
+    var refImage = new Image();
+    refImage.src = staticCsldCharacterUrl;
+    refImage.onload = function () {
+      refCtx.drawImage(refImage, 0, 0, refCanvas.width, refCanvas.height);
+      const refImgData = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height);
+      preprocessForTracer(refImgData);
+      // trace the b-and-w image
+      TraceSkeleton.load().then(tracer => {
+        const { polylines } = tracer.fromImageData(refImgData);
+        resolve(polylines);
+        // console.log("ref-character:");
+        // console.log(polylines)
+      });
+    };
+  });
+
+  // user-character
+  var userPromise = new Promise(function(resolve, reject) {
+    var userSvg = document.getElementById("user-character");
+    const characterSize = document.getElementById("ref-character").clientWidth;
+    if (userSvg !== null) {
+      var userSvgString = new XMLSerializer().serializeToString(userSvg);
+      const userCanvas = document.createElement('canvas');
+      userCanvas.width = characterSize;
+      userCanvas.height = characterSize;
+      const userCtx = userCanvas.getContext('2d');
+      var v = Canvg.fromString(userCtx, userSvgString);
+      v.render().then(function() {
+        document.body.appendChild(userCanvas);
+        var userImgData = userCtx.getImageData(0, 0, userCanvas.width, userCanvas.height);
+        preprocessForTracer(userImgData);
+        console.log("userImgData: ", userImgData);
+        // trace the b-and-w image
+        TraceSkeleton.load().then(tracer => {
+          const { polylines, rects } = tracer.fromImageData(userImgData);
+          resolve(polylines);
+          // console.log("user-character:");
+          // console.log(tracer.visualize({polylines, rects}));
+          // console.log(polylines);
+        });
+      });
+    } else {
+      reject();
+    }
+  });
+
+  // check
+  Promise.all([refPromise, userPromise]).then(function([refPolylines, userPolylines]) {
+    var userSvg = document.getElementById("user-character");
+    userPolylines.forEach(function(userLine) {
+      userLine.forEach(function(userPoint) {
+        var {neighbor, distance} = findNearestNeighbor(refPolylines, userPoint);
+        console.log(distance);
+        if (distance >= 20) {
+          var svgns = "http://www.w3.org/2000/svg";
+          var circle = document.createElementNS(svgns, 'circle');
+          circle.setAttributeNS(null, 'cx', userPoint[0]);
+          circle.setAttributeNS(null, 'cy', userPoint[1]);
+          circle.setAttributeNS(null, 'r', 5);
+          circle.setAttributeNS(null, 'style', 'fill: blue;' );
+          userSvg.appendChild(circle);
+        }
+      });
+    });
+  });
+});
+
+function findNearestNeighbor(polylines, point) {
+  var nearestDistance = Infinity;
+  var nearestNeighbor;
+
+  polylines.forEach(function(line) {
+    line.forEach(function(neighbor) {
+      var d = Math.sqrt(Math.pow(neighbor[0] - point[0], 2) + Math.pow(neighbor[1] - point[1], 2));
+      if(d < nearestDistance) {
+        nearestDistance = d;
+        nearestNeighbor = neighbor;
+      }
+    });
+  });
+
+  return { neighbor: nearestNeighbor, distance: nearestDistance };
+}
+
+// extract strokes only and convert to black-and-white
+function preprocessForTracer(imgData) {
+  const data = imgData.data;
+
+  // enumerate all pixels
+  // each pixel's r,g,b,a datum are stored in separate sequential array elements
+  for (let i = 0; i < data.length; i += 4) {
+    const red = data[i];
+    const green = data[i + 1];
+    const blue = data[i + 2];
+    if (red <= 10 && green <= 10 && blue <= 10 && data[i+3] > 0) {
+      // flip black stroke to white
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = 255;
+    } else {
+      // set to black background
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+      data[i + 3] = 255;
+    }
+  }
+}
 
 app.ports.loadFontPort.subscribe(function (name) {
   const dir = process.env.PUBLIC_URL + "/fonts";
@@ -27,29 +148,36 @@ app.ports.replayCsldCharacterPort.subscribe(function () {
 
 app.ports.loadCsldCharacterPort.subscribe(function ([scriptType, char]) {
   fetch(`https://www.moedict.tw/api/web/word/${char}`)
-  .then(function(response) {
-    return response.json();
-  })
-  .then(function(moeJson) {
-    if (moeJson === undefined || moeJson.data === undefined) {
-      setCsldCharacterUrl("");
-      return;
-    }
-    const charInfo = moeJson.data.strokes.find(function(element) {
-      return element.key === scriptType;
-    });
-    if (charInfo !== undefined) {
-      fetch(charInfo.gif)
-      .then(function(response) { return response.blob();})
-        .then(function(blob) {
-            convertBlobToBase64(blob).then(function(charUrl) {
+    .then(function (response) {
+      return response.json();
+    })
+    .then(function (moeJson) {
+      if (moeJson === undefined || moeJson.data === undefined) {
+        setCsldCharacterUrl("");
+        return;
+      }
+      const charInfo = moeJson.data.strokes.find(function (element) {
+        return element.key === scriptType;
+      });
+      if (charInfo !== undefined) {
+        fetch(charInfo.gif)
+          .then(function (response) { return response.blob(); })
+          .then(function (blob) {
+            convertBlobToBase64(blob).then(function (charUrl) {
               setCsldCharacterUrl(charUrl);
+              fetch(charInfo.jpg)
+                .then(function (response) { return response.blob(); })
+                .then(function (blob) {
+                  convertBlobToBase64(blob).then(function (staticCharUrl) {
+                    staticCsldCharacterUrl = staticCharUrl;
+                  });
+                })
             });
-        })
-    } else {
-      setCsldCharacterUrl("");
-    }
-  });
+          })
+      } else {
+        setCsldCharacterUrl("");
+      }
+    });
 });
 
 function setCsldCharacterUrl(url) {
@@ -59,10 +187,10 @@ function setCsldCharacterUrl(url) {
 
 // Converts any given blob into a base64 encoded string.
 function convertBlobToBase64(blob) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function (resolve, reject) {
     const reader = new FileReader();
     reader.onerror = reject;
-    reader.onload = function() {
+    reader.onload = function () {
       resolve(reader.result);
     };
     reader.readAsDataURL(blob);

@@ -24,9 +24,18 @@ import TypedSvg.Types exposing (Paint(..), px)
 
 
 port loadFontPort : String -> Cmd msg
-port loadCsldCharacterPort : (String, String) -> Cmd msg
+
+
+port loadCsldCharacterPort : ( String, String ) -> Cmd msg
+
+
 port setCsldCharacterUrlPort : (String -> msg) -> Sub msg
+
+
 port replayCsldCharacterPort : () -> Cmd msg
+
+
+port checkCsldCharacterPort : () -> Cmd msg
 
 
 main : Program () Model Msg
@@ -95,6 +104,7 @@ type Msg
     | ChangeFont FontId
     | SetCsldCharacterUrl String
     | ReplayCsldCharacter
+    | CheckCsldCharacter
 
 
 type alias Palette =
@@ -201,25 +211,25 @@ getFontName id =
         "seto" ->
             "Seto手寫體"
 
-        "csld_楷書"->
+        "csld_楷書" ->
             "張炳煌楷書"
-        
-        "csld_隸書"->
+
+        "csld_隸書" ->
             "張炳煌隸書"
-        
-        "csld_篆書"->
+
+        "csld_篆書" ->
             "張炳煌篆書"
 
-        "csld_行書"->
+        "csld_行書" ->
             "張炳煌行書"
 
-        "csld_草書"->
+        "csld_草書" ->
             "張炳煌草書"
 
-        "csld_金文"->
+        "csld_金文" ->
             "張炳煌金文"
 
-        "csld_甲骨文"->
+        "csld_甲骨文" ->
             "張炳煌甲文"
 
         _ ->
@@ -231,13 +241,18 @@ update msg model =
     case msg of
         ChangeFont id ->
             changeFont id model
-        
+
         ChangeCharacter string ->
             changeCharacter string model
-        
+
         ReplayCsldCharacter ->
             ( model
             , replayCsldCharacterPort ()
+            )
+
+        CheckCsldCharacter ->
+            ( model
+            , checkCsldCharacterPort ()
             )
 
         _ ->
@@ -287,6 +302,7 @@ setCsldCharacterUrl url model =
         | csldCharacterUrl =
             if String.isEmpty url then
                 Nothing
+
             else
                 Just url
     }
@@ -303,7 +319,8 @@ changeFont id model =
     , Cmd.batch
         [ if isCsldFont id then
             Cmd.none
-        else
+
+          else
             loadFontPort id
         , loadCsldCharacter id model.character
         ]
@@ -362,7 +379,7 @@ changeDimensions width height model =
                 model
 
 
-changeCharacter : String -> Model -> (Model, Cmd Msg)
+changeCharacter : String -> Model -> ( Model, Cmd Msg )
 changeCharacter string model =
     let
         newChar =
@@ -373,12 +390,12 @@ changeCharacter string model =
                 Nothing ->
                     model.character
     in
-    ({ model
+    ( { model
         | character =
             newChar
         , pendingString =
             string
-    }
+      }
     , loadCsldCharacter model.fontId newChar
     )
 
@@ -386,7 +403,8 @@ changeCharacter string model =
 loadCsldCharacter : String -> Char -> Cmd Msg
 loadCsldCharacter fontId char =
     if String.startsWith "csld_" fontId then
-        loadCsldCharacterPort ((String.dropLeft (String.length "csld_") fontId), String.fromChar char)
+        loadCsldCharacterPort ( String.dropLeft (String.length "csld_") fontId, String.fromChar char )
+
     else
         Cmd.none
 
@@ -524,8 +542,10 @@ viewControls ({ buttonHeight, palette, gridSize, spacing, fontId } as model) =
             ]
             [ if isCsldFont fontId then
                 viewReplayButton buttonHeight palette
-            else
+
+              else
                 E.none
+            , viewCheckButton buttonHeight palette
             , viewUndoButton buttonHeight palette
             , viewClearButton buttonHeight palette
             , viewSelectCopyStyleButton model
@@ -592,6 +612,11 @@ viewCharacterInput model =
 viewReplayButton : Int -> Palette -> E.Element Msg
 viewReplayButton buttonHeight palette =
     viewIconButton buttonHeight palette ReplayCsldCharacter FeatherIcons.play
+
+
+viewCheckButton : Int -> Palette -> E.Element Msg
+viewCheckButton buttonHeight palette =
+    viewIconButton buttonHeight palette CheckCsldCharacter FeatherIcons.userCheck
 
 
 viewUndoButton : Int -> Palette -> E.Element Msg
@@ -707,7 +732,8 @@ viewStrokes : Model -> E.Element Msg
 viewStrokes model =
     E.html <|
         Svg.svg
-            [ SvgAttributes.viewBox 0 0 model.gridSize model.gridSize
+            [ SvgAttributes.id "user-character"
+            , SvgAttributes.viewBox 0 0 model.gridSize model.gridSize
             , SvgAttributes.style "pointer-events: none"
             ]
         <|
@@ -963,7 +989,8 @@ viewPoint color width point =
 viewCharacter : Model -> E.Element Msg
 viewCharacter { practiceStyle, gridSize, grid, palette, character, fontId, csldCharacterUrl } =
     E.el
-        ([ Font.size <| round gridSize
+        ([ E.htmlAttribute <| Html.Attributes.id "ref-character"
+         , Font.size <| round gridSize
          , Font.family
             [ Font.typeface fontId
             ]
@@ -995,6 +1022,7 @@ viewCharacter { practiceStyle, gridSize, grid, palette, character, fontId, csldC
                     , description =
                         String.cons character ("（" ++ getFontName fontId ++ "）")
                     }
+
             Nothing ->
                 E.text <|
                     String.fromChar character
