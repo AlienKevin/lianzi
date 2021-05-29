@@ -9,6 +9,7 @@ const app = Elm.Main.init({
   node: document.getElementById('root')
 });
 
+const corsProxy = "https://morning-taiga-42342.herokuapp.com/";
 let csldCharacterUrl = "";
 let staticCsldCharacterUrl = "";
 
@@ -48,7 +49,6 @@ app.ports.checkCsldCharacterPort.subscribe(function () {
       const userCtx = userCanvas.getContext('2d');
       var v = Canvg.fromString(userCtx, userSvgString);
       v.render().then(function() {
-        document.body.appendChild(userCanvas);
         var userImgData = userCtx.getImageData(0, 0, userCanvas.width, userCanvas.height);
         preprocessForTracer(userImgData);
         console.log("userImgData: ", userImgData);
@@ -147,7 +147,7 @@ app.ports.replayCsldCharacterPort.subscribe(function () {
 });
 
 app.ports.loadCsldCharacterPort.subscribe(function ([scriptType, char]) {
-  fetch(`https://www.moedict.tw/api/web/word/${char}`)
+  fetch(`${corsProxy}https://www.moedict.tw/api/web/word/${char}`)
     .then(function (response) {
       return response.json();
     })
@@ -160,12 +160,12 @@ app.ports.loadCsldCharacterPort.subscribe(function ([scriptType, char]) {
         return element.key === scriptType;
       });
       if (charInfo !== undefined) {
-        fetch(charInfo.gif)
+        fetch(corsProxy + charInfo.gif)
           .then(function (response) { return response.blob(); })
           .then(function (blob) {
             convertBlobToBase64(blob).then(function (charUrl) {
               setCsldCharacterUrl(charUrl);
-              fetch(charInfo.jpg)
+              fetch(corsProxy + charInfo.jpg)
                 .then(function (response) { return response.blob(); })
                 .then(function (blob) {
                   convertBlobToBase64(blob).then(function (staticCharUrl) {
