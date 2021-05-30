@@ -142,7 +142,6 @@ app.ports.loadFontPort.subscribe(function (name) {
 });
 
 app.ports.replayCsldCharacterPort.subscribe(function () {
-  console.log("replaying...");
   document.getElementById("csld-character").getElementsByTagName("img")[0].src = csldCharacterUrl;
 });
 
@@ -164,12 +163,13 @@ app.ports.loadCsldCharacterPort.subscribe(function ([scriptType, char]) {
           .then(function (response) { return response.blob(); })
           .then(function (blob) {
             convertBlobToBase64(blob).then(function (charUrl) {
-              setCsldCharacterUrl(charUrl);
+              csldCharacterUrl = charUrl;
               fetch(corsProxy + charInfo.jpg)
                 .then(function (response) { return response.blob(); })
                 .then(function (blob) {
                   convertBlobToBase64(blob).then(function (staticCharUrl) {
                     staticCsldCharacterUrl = staticCharUrl;
+                    app.ports.setCsldCharacterUrlPort.send(staticCharUrl);
                   });
                 })
             });
