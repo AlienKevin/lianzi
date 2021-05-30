@@ -74,12 +74,28 @@ app.ports.checkCsldCharacterPort.subscribe(function () {
     userPolylines.forEach(function(userLine) {
       userLine.forEach(function(userPoint) {
         var {neighbor, distance} = findNearestNeighbor(refPolylines, userPoint);
-        console.log(distance);
         if (distance >= 20) {
           isAllGood = false;
           var circle = document.createElementNS(svgns, 'circle');
           circle.setAttributeNS(null, 'cx', userPoint[0]);
           circle.setAttributeNS(null, 'cy', userPoint[1]);
+          circle.setAttributeNS(null, 'r', 5);
+          circle.setAttributeNS(null, 'style', 'fill: #33ccff;' );
+          userSvg.appendChild(circle);
+          setTimeout(function() {
+            fadeOut(circle);
+          }, 2000);
+        }
+      });
+    });
+    refPolylines.forEach(function(refLine) {
+      refLine.forEach(function(refPoint) {
+        var {neighbor, distance} = findNearestNeighbor(userPolylines, refPoint);
+        if (distance >= 20) {
+          isAllGood = false;
+          var circle = document.createElementNS(svgns, 'circle');
+          circle.setAttributeNS(null, 'cx', refPoint[0]);
+          circle.setAttributeNS(null, 'cy', refPoint[1]);
           circle.setAttributeNS(null, 'r', 5);
           circle.setAttributeNS(null, 'style', 'fill: #33ccff;' );
           userSvg.appendChild(circle);
