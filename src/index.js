@@ -69,12 +69,14 @@ app.ports.checkCsldCharacterPort.subscribe(function () {
   // check
   Promise.all([refPromise, userPromise]).then(function([refPolylines, userPolylines]) {
     var userSvg = document.getElementById("user-character");
+    var svgns = "http://www.w3.org/2000/svg";
+    var isAllGood = true;
     userPolylines.forEach(function(userLine) {
       userLine.forEach(function(userPoint) {
         var {neighbor, distance} = findNearestNeighbor(refPolylines, userPoint);
         console.log(distance);
         if (distance >= 20) {
-          var svgns = "http://www.w3.org/2000/svg";
+          isAllGood = false;
           var circle = document.createElementNS(svgns, 'circle');
           circle.setAttributeNS(null, 'cx', userPoint[0]);
           circle.setAttributeNS(null, 'cy', userPoint[1]);
@@ -87,6 +89,19 @@ app.ports.checkCsldCharacterPort.subscribe(function () {
         }
       });
     });
+    if (isAllGood) {
+      var checkmark = document.createElementNS(svgns, 'text');
+      var size = userSvg.clientWidth / 2;
+      checkmark.setAttributeNS(null, 'x', size / 2.5);
+      checkmark.setAttributeNS(null, 'y', size * 1.25);
+      checkmark.setAttributeNS(null, 'font-size', size);
+      var textNode = document.createTextNode("✅");
+      checkmark.appendChild(textNode);
+      userSvg.appendChild(checkmark);
+      setTimeout(function() {
+        fadeOut(checkmark);
+      }, 1000);
+    }
   });
 });
 
@@ -100,7 +115,7 @@ function fadeOut(element) {
       element.style.opacity = op;
       element.style.filter = 'alpha(opacity=' + op * 100 + ")";
       op -= op * 0.1;
-  }, 50);
+  }, 40);
 }
 
 function findNearestNeighbor(polylines, point) {
