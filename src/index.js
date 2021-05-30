@@ -79,13 +79,29 @@ app.ports.checkCsldCharacterPort.subscribe(function () {
           circle.setAttributeNS(null, 'cx', userPoint[0]);
           circle.setAttributeNS(null, 'cy', userPoint[1]);
           circle.setAttributeNS(null, 'r', 5);
-          circle.setAttributeNS(null, 'style', 'fill: blue;' );
+          circle.setAttributeNS(null, 'style', 'fill: #33ccff;' );
           userSvg.appendChild(circle);
+          setTimeout(function() {
+            fadeOut(circle);
+          }, 2000);
         }
       });
     });
   });
 });
+
+function fadeOut(element) {
+  var op = 1;  // initial opacity
+  var timer = setInterval(function () {
+      if (op <= 0.1){
+          clearInterval(timer);
+          element.remove();
+      }
+      element.style.opacity = op;
+      element.style.filter = 'alpha(opacity=' + op * 100 + ")";
+      op -= op * 0.1;
+  }, 50);
+}
 
 function findNearestNeighbor(polylines, point) {
   var nearestDistance = Infinity;
