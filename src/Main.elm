@@ -1185,7 +1185,7 @@ decodePoint event =
             event.pointer.offsetPos
 
         force =
-            event.contactDetails.pressure
+            event.contactDetails.pressure * 1.5
     in
     { x = x
     , y = y
