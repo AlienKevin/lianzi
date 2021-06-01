@@ -72,6 +72,7 @@ type alias Model =
     , fontId : FontId
     , showFontSelection : Bool
     , csldCharacterUrl : Maybe String
+    , isRegisteringStrokes : Bool
     }
 
 
@@ -160,6 +161,7 @@ init _ =
             , fontId = fontId
             , showFontSelection = False
             , csldCharacterUrl = Nothing
+            , isRegisteringStrokes = False
             }
     in
     ( model
@@ -438,16 +440,22 @@ startStroke point model =
     let
         newStroke =
             Array.fromList [ point ]
+        _ = Debug.log "startStroke..." ""
     in
     { model
         | strokes =
             Array.push newStroke model.strokes
+        , isRegisteringStrokes =
+            True
     }
 
 
 extendStroke : Point -> Model -> Model
 extendStroke point model =
-    if point.force == 0 then
+    let
+        _ = Debug.log "extendStroke..." ""
+    in
+    if point.force == 0 || not model.isRegisteringStrokes then
         model
 
     else
@@ -464,7 +472,10 @@ extendStroke point model =
 
 endStroke : Point -> Model -> Model
 endStroke point model =
-    extendStroke point model
+    let
+        _ = Debug.log "endStroke..." ""
+    in
+    extendStroke point { model | isRegisteringStrokes = False }
 
 
 view : Model -> Html Msg
@@ -1189,7 +1200,7 @@ decodePoint event =
     in
     { x = x
     , y = y
-    , force = force
+    , force = if force == 0 then 0.75 else force
     }
 
 
