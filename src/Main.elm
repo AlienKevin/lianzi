@@ -7,6 +7,7 @@ import Browser.Dom
 import Browser.Events
 import Color exposing (Color)
 import Color.Manipulate
+import Dict exposing (Dict)
 import Element as E
 import Element.Background as Background
 import Element.Font as Font
@@ -38,6 +39,15 @@ port replayCsldCharacterPort : () -> Cmd msg
 port checkCsldCharacterPort : () -> Cmd msg
 
 
+port returnCheckResultPort : (Bool -> msg) -> Sub msg
+
+
+port getNextCharInListPort : Int -> Cmd msg
+
+
+port setCurrCharInListPort : (String -> msg) -> Sub msg
+
+
 main : Program () Model Msg
 main =
     Browser.element
@@ -53,6 +63,8 @@ subscriptions _ =
     Sub.batch
         [ Browser.Events.onResize (\w h -> ChangeOrientation (toFloat w) (toFloat h))
         , setCsldCharacterUrlPort SetCsldCharacterUrl
+        , setCurrCharInListPort SetCurrCharInList
+        , returnCheckResultPort HandleCheckResult
         ]
 
 
@@ -73,7 +85,20 @@ type alias Model =
     , showFontSelection : Bool
     , csldCharacterUrl : Maybe String
     , isRegisteringStrokes : Bool
+    , mode : Mode
+    , compassData : CompassData
     }
+
+
+type alias CompassData =
+    { stats : Dict Char { right : Int, total : Int }
+    , nextCharId : Int
+    }
+
+
+type Mode
+    = CompassMode
+    | SearchMode
 
 
 type alias FontId =
@@ -106,6 +131,10 @@ type Msg
     | SetCsldCharacterUrl String
     | ReplayCsldCharacter
     | CheckCsldCharacter
+    | EnterCompassMode
+    | EnterSearchMode
+    | HandleCheckResult Bool
+    | SetCurrCharInList String
 
 
 type alias Palette =
@@ -162,6 +191,13 @@ init _ =
             , showFontSelection = False
             , csldCharacterUrl = Nothing
             , isRegisteringStrokes = False
+            , mode = CompassMode
+            , compassData =
+                { stats =
+                    Dict.empty
+                , nextCharId =
+                    0
+                }
             }
     in
     ( model
@@ -256,6 +292,70 @@ update msg model =
             ( model
             , checkCsldCharacterPort ()
             )
+        
+        EnterCompassMode ->
+            ( { model
+                | mode =
+                    CompassMode
+                }
+            , getNextCharInListPort model.compassData.nextCharId
+            )
+        
+        HandleCheckResult pass ->
+            if model.mode == CompassMode then
+                let
+                    oldCompassData =
+                        model.compassData
+                in
+                ( clearStroke <| { model
+                    | compassData =
+                        { oldCompassData
+                            | stats =
+                                Dict.update model.character
+                                    (\stat ->
+                                        case stat of
+                                            Just { right, total } ->
+                                                Just { right =
+                                                    if pass then
+                                                        right + 1
+                                                    else
+                                                        right
+                                                , total =
+                                                    total + 1
+                                                }
+                                            Nothing ->
+                                                Just { right =
+                                                    if pass then
+                                                        1
+                                                    else
+                                                        0
+                                                , total = 1
+                                                }
+                                    )
+                                    oldCompassData.stats
+                        }
+                }
+                , if pass then
+                    getNextCharInListPort model.compassData.nextCharId
+                else
+                    Cmd.none
+                )
+            else
+                ( model, Cmd.none )
+        
+        SetCurrCharInList string ->
+            let
+                oldCompassData =
+                    model.compassData
+            in
+            changeCharacter string
+                { model
+                    | compassData =
+                        { oldCompassData
+                            | nextCharId =
+                                oldCompassData.nextCharId + 1
+                        }
+                }
 
         _ ->
             ( case msg of
@@ -291,7 +391,10 @@ update msg model =
 
                 SetCsldCharacterUrl url ->
                     setCsldCharacterUrl url model
-
+                
+                EnterSearchMode ->
+                    { model | mode = SearchMode }
+                
                 _ ->
                     model
             , Cmd.none
@@ -541,7 +644,7 @@ viewWritingPad ({ grid, gridSize, palette } as model) =
 
 
 viewControls : Model -> E.Element Msg
-viewControls ({ buttonHeight, palette, gridSize, spacing, fontId } as model) =
+viewControls ({ buttonHeight, palette, gridSize, spacing, fontId, mode } as model) =
     E.column
         [ E.spacing spacing
         , E.width <| E.px <| round gridSize
@@ -566,10 +669,14 @@ viewControls ({ buttonHeight, palette, gridSize, spacing, fontId } as model) =
         , E.row
             [ E.spacing 10
             , E.centerX
-            ]
-            [ viewCharacterInput model
-            , viewFontConfig model
-            ]
+            ] <|
+            if mode == SearchMode then
+                [ viewCharacterInput model
+                , viewCompassButton buttonHeight palette
+                , viewFontConfig model
+                ]
+            else
+                [ viewSearchButton buttonHeight palette ]
         ]
 
 
@@ -618,6 +725,16 @@ viewCharacterInput model =
         , placeholder = Just <| Input.placeholder [] <| E.text "輸入漢字"
         , label = Input.labelHidden "輸入漢字 Input Hanzi"
         }
+
+
+viewSearchButton : Int -> Palette -> E.Element Msg
+viewSearchButton buttonHeight palette =
+    viewIconButton buttonHeight palette EnterSearchMode FeatherIcons.search
+
+
+viewCompassButton : Int -> Palette -> E.Element Msg
+viewCompassButton buttonHeight palette =
+    viewIconButton buttonHeight palette EnterCompassMode FeatherIcons.compass
 
 
 viewReplayButton : Int -> Palette -> E.Element Msg

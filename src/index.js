@@ -9,9 +9,21 @@ const app = Elm.Main.init({
   node: document.getElementById('root')
 });
 
+var charList;
+
+fetch("常用國字表.txt").then(function(response) {
+  return response.text().then(function(txt) {
+    charList = txt.split("\n");
+  });
+});
+
 const corsProxy = "https://morning-taiga-42342.herokuapp.com/";
 let csldCharacterUrl = "";
 let staticCsldCharacterUrl = "";
+
+app.ports.getNextCharInListPort.subscribe(function (nextCharId) {
+  app.ports.setCurrCharInListPort.send(charList[nextCharId]);
+});
 
 app.ports.checkCsldCharacterPort.subscribe(function () {
   // ref-character
@@ -118,6 +130,9 @@ app.ports.checkCsldCharacterPort.subscribe(function () {
         fadeOut(checkmark);
       }, 1000);
     }
+    setTimeout(function() {
+      app.ports.returnCheckResultPort.send(isAllGood);
+    }, 2000);
   });
 });
 
